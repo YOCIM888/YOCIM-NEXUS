@@ -1,5 +1,5 @@
 <template>
-  <LangDialog :show="showLangDialog" @selectLanguage="selectLanguage" />
+  <LangDialog :show="showLangDialog" @confirm="confirmLangDialog" @goSettings="goSettingsFromLangDialog" />
 
   <div :class="['browser', { dark: isDark, 'tabs-left': tabsPosition === 'left', 'sidebar-collapsed': tabsPosition === 'left' && sidebarCollapsed }]">
     <VerticalTitleBar
@@ -105,6 +105,7 @@
         />
         <SettingsPage
           v-else-if="tab.url === 'yocim://settings'"
+          :highlight-lang="highlightLangSetting"
         />
         <webview
           v-else
@@ -223,6 +224,7 @@ let urlSuggestTimer = null
 const showNotes = ref(false)
 const showReadingList = ref(false)
 const showLangDialog = ref(false)
+const highlightLangSetting = ref(false)
 const navBarRef = ref(null)
 
 const urlInputRef = computed(() => navBarRef.value?.urlInputRef)
@@ -313,11 +315,17 @@ function handlePanelNavigate(url) {
   loadInTab(url)
 }
 
-function selectLanguage(lang) {
-  setLocale(lang)
-  updateSettings({ language: lang })
+function confirmLangDialog() {
+  updateSettings({ langConfirmed: true })
   reactiveSettings.value = getSettings()
   showLangDialog.value = false
+}
+
+function goSettingsFromLangDialog() {
+  showLangDialog.value = false
+  openSettings()
+  highlightLangSetting.value = true
+  setTimeout(() => { highlightLangSetting.value = false }, 3000)
 }
 
 function onUrlInput() {
@@ -452,9 +460,12 @@ onMounted(async () => {
   if (isFirstRun) {
     setLocale('en')
     updateSettings({ language: 'en' })
-    showLangDialog.value = true
   } else if (settings.language) {
     setLocale(settings.language)
+  }
+
+  if (!settings.langConfirmed) {
+    showLangDialog.value = true
   }
   applyCustomTheme()
   if (settings.downloadPath) {

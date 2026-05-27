@@ -8,7 +8,7 @@
     </button>
     <div class="vertical-title-info">
       <img v-if="activeTab?.favicon && !activeTab?.isHome" class="vertical-title-favicon" :src="activeTab.favicon" @error="activeTab.favicon = ''" />
-      <span class="vertical-title-text">{{ activeTab?.isHome ? 'YOCIM NEXUS' : (activeTab?.title || 'New Tab') }}</span>
+      <span class="vertical-title-text">{{ activeTab?.isHome ? 'YOCIM NEXUS' : (activeTab?.title || t('newTab')) }}</span>
     </div>
     <button class="win-btn win-minimize" @click="$emit('minimize')" title="最小化">─</button>
     <button class="win-btn win-maximize" @click="$emit('maximize')" :title="isMaximized ? '还原' : '最大化'">{{ isMaximized ? '❐' : '□' }}</button>
@@ -17,6 +17,8 @@
 </template>
 
 <script setup>
+import { useI18n } from '../utils/i18n'
+const { t } = useI18n()
 defineProps({
   activeTab: Object,
   sidebarCollapsed: Boolean,
