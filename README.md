@@ -30,6 +30,7 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Frameless fullscreen** — Press F11 for immersive mode, long-press ESC to exit
 - **Startup page customization** — Default homepage or custom URL
 - **New tab page customization** — Set any URL as your new tab page
+- **Default browser** — Set YOCIM NEXUS as the system default browser
 
 ### Tab Management
 
@@ -41,6 +42,10 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Duplicate tabs** — Right-click to duplicate to the right
 - **Restore closed tabs** — Ctrl+Shift+T to reopen recently closed tabs
 - **Incognito window** — Independent session partition, Ctrl+Shift+N
+- **Tab bar position** — Switch between top (horizontal) and left (vertical) layout
+- **Sidebar collapse** — Collapse the vertical sidebar to icon-only mode
+- **Crash recovery** — Auto-detect and reload crashed tabs
+- **Session restore** — Reopen tabs from the previous session on startup
 
 ### Bookmarks & Records
 
@@ -48,7 +53,7 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Quick bookmark toggle** — Ctrl+D to bookmark/unbookmark current page
 - **History** — Full-text search, auto-recorded
 - **Reading list** — Save pages to read later
-- **Quick notes** — Jot down ideas anytime, auto-save
+- **Quick notes** — Jot down ideas anytime, auto-save; supports pinning, color labels, and drag reorder
 
 ### Privacy & Security
 
@@ -64,6 +69,7 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Light / Dark / Custom themes** — Switch themes or build your own color palette
 - **Custom homepage background** — Set any image as wallpaper
 - **Hide logo / icons** — Minimalist mode: hide homepage logo and navigation grid
+- **Navigation grid** — Add, edit, delete, and drag-reorder shortcut cards on homepage
 - **Panel style customization** — Adjust width and background color for each sidebar panel individually:
   - Bookmark panel
   - History panel
@@ -75,13 +81,15 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 
 ### Tools
 
-- **Download manager** — Real-time progress, speed display, open file/folder
+- **Download manager** — Real-time progress, speed display, pause/resume, open file/folder
 - **In-page search** — Ctrl+F with match count
 - **Split view** — Two tabs side by side for comparison
 - **Screenshot** — Full page capture (Ctrl+Shift+S)
+- **Print** — Print current page directly
 - **Picture-in-Picture** — Pop out video, always on top
-- **Extensions** — Install Chrome extension directories
+- **Extensions** — Install and manage Chrome extension directories
 - **Update checker** — Detect latest release from GitHub
+- **Context menu** — Right-click for navigation, image actions (copy image, copy link, view image), print, screenshot
 
 ### Data Management
 
@@ -123,26 +131,38 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 ```
 Yocim-Browser/
 ├── electron/
-│   ├── main.js          # Main process (window, IPC, downloads, cookies)
-│   ├── preload.js       # Preload script (context bridge)
-│   └── adblocker.js     # Ad blocker module
+│   ├── main.js              # Main process (window, IPC, downloads, cookies, extensions)
+│   ├── preload.js           # Preload script (context bridge)
+│   ├── webview-preload.js   # Webview preload (F5/F11/F12 key forwarding)
+│   └── adblocker.js         # Ad blocker module
 ├── src/
-│   ├── App.vue          # Core: tab bar, navbar, shortcuts, download IPC
-│   ├── main.js          # Vue entry
-│   ├── style.css        # Global styles & CSS custom properties
+│   ├── App.vue              # Root component (layout orchestration)
+│   ├── main.js              # Vue entry
+│   ├── style.css            # Global styles & CSS custom properties
 │   ├── components/
 │   │   ├── HomePage.vue         # Homepage (logo, search, nav grid, context menus)
 │   │   ├── SettingsPage.vue     # Settings (7 sections)
+│   │   ├── NavBar.vue           # Navigation bar (address bar, bookmarks, panels)
+│   │   ├── TabBar.vue           # Tab bar (drag reorder, audio, freeze, split view)
+│   │   ├── TabContextMenu.vue   # Tab right-click context menu
+│   │   ├── VerticalTitleBar.vue # Vertical layout title bar
+│   │   ├── LangDialog.vue       # First-launch language selection dialog
 │   │   ├── BookmarkPanel.vue    # Bookmark panel
 │   │   ├── HistoryPanel.vue     # History panel
 │   │   ├── DownloadPanel.vue    # Download manager
 │   │   ├── ReadingListPanel.vue # Reading list
 │   │   ├── NotesPanel.vue       # Quick notes
 │   │   └── FindBar.vue          # In-page search
+│   ├── composables/
+│   │   ├── useSettings.js       # Global settings & theme management
+│   │   ├── useTabs.js           # Tab lifecycle & state management
+│   │   ├── useWebview.js        # Webview interaction & navigation
+│   │   ├── useKeyboard.js       # Keyboard shortcuts handler
+│   │   └── useDownloads.js      # Download management
 │   └── utils/
-│       ├── i18n.js      # Internationalization (zh/en)
-│       └── storage.js   # Data persistence & password management
-├── public/icon/         # App icons
+│       ├── i18n.js              # Internationalization (zh/en)
+│       └── storage.js           # Data persistence & password management
+├── public/icon/             # App icons
 ├── package.json
 └── vite.config.js
 ```

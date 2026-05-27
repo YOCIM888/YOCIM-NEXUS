@@ -364,7 +364,7 @@
         <div class="about-content">
           <img class="about-logo" src="/icon/yocim.jpg" alt="LOGO" />
           <h1 class="about-title">YOCIM NEXUS</h1>
-          <p class="about-version">{{ t('version') }}: 0.1.1</p>
+          <p class="about-version">{{ t('version') }}: 0.1.2</p>
           <p class="about-copyright">{{ t('copyright') }}</p>
           <button class="btn" @click="checkForUpdates" style="margin-top: 16px;">{{ t('checkForUpdates') }}</button>
           <div v-if="updateStatus" class="update-status">
