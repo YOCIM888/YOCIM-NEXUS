@@ -1,7 +1,7 @@
 {
   "name": "yocim-nexus",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "YOCIM NEXUS - A modern multi-tab browser built with Electron",
   "author": "YOCIM",
   "main": "dist-electron/main.js",
