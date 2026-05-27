@@ -1,0 +1,41 @@
+{
+  "name": "yocim-nexus",
+  "private": true,
+  "version": "0.1.1",
+  "description": "YOCIM NEXUS - A modern multi-tab browser built with Electron",
+  "author": "YOCIM",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "vite --mode electron",
+    "electron:build": "vite build --mode electron && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.yocim.browser",
+    "productName": "YOCIM NEXUS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "public/icon/app.png"
+    }
+  },
+  "dependencies": {
+    "vue": "^3.5.34"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.7",
+    "electron": "^42.2.0",
+    "electron-builder": "^26.11.1",
+    "vite": "^8.0.14",
+    "vite-plugin-electron": "^1.0.0-beta.13",
+    "vite-plugin-electron-renderer": "^1.0.0-beta.9"
+  }
+}
