@@ -20,7 +20,7 @@
           <button class="btn" @click="setDefaultBrowser">{{ t('setDefault') }}</button>
         </div>
 
-        <div class="setting-row">
+        <div :class="['setting-row', { 'highlight-row': highlightLang }]">
           <span>{{ t('language') }}</span>
           <select v-model="currentLang" @change="changeLanguage" class="select-input">
             <option value="zh">{{ t('chinese') }}</option>
@@ -511,6 +511,9 @@ import { getSettings, updateSettings, exportAllData, importAllData, clearAllData
 import { useI18n } from '../utils/i18n'
 
 const { t, setLocale, getLocale } = useI18n()
+
+const props = defineProps({ highlightLang: Boolean })
+const highlightLang = computed(() => props.highlightLang)
 
 const refreshSettings = inject('refreshSettings', () => {})
 
@@ -1043,6 +1046,21 @@ function goToRelease() {
 
 .setting-row.danger {
   color: var(--danger);
+}
+
+.setting-row.highlight-row {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  padding: 14px 12px;
+  margin: 4px -12px;
+  transition: background 0.3s, color 0.3s;
+  animation: highlight-pulse 1s ease-in-out 2;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .setting-info {

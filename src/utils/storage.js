@@ -61,6 +61,7 @@ const defaultSettings = {
   notesPanelBg: '',
   sessionRestore: false,
   tabsPosition: 'top',
+  langConfirmed: false,
 }
 
 export const SEARCH_ENGINES = {

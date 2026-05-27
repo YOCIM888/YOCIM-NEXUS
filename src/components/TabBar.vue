@@ -16,7 +16,7 @@
       <button v-if="tab.isAudioPlaying && !sidebarCollapsed" class="tab-audio" @click.stop="$emit('toggleMute', tab.id)">{{ tab.isMuted ? '🔇' : '🔊' }}</button>
       <button v-if="tab.isSuspended && !sidebarCollapsed" class="tab-freeze-icon" @click.stop="$emit('thawTab', tab.id)">❄️</button>
       <button v-else-if="!sidebarCollapsed" class="tab-freeze-btn" @click.stop="$emit('freezeTab', tab.id)"></button>
-      <span v-if="!sidebarCollapsed" class="tab-title">{{ tab.title || 'New Tab' }}</span>
+      <span v-if="!sidebarCollapsed" class="tab-title">{{ tab.title || t('newTab') }}</span>
       <button v-if="!sidebarCollapsed" class="tab-close" @click.stop="$emit('closeTab', tab.id)">&times;</button>
     </div>
     <button v-if="!sidebarCollapsed" class="tab-add" @click="$emit('addTab')">+</button>
@@ -33,6 +33,8 @@
 </template>
 
 <script setup>
+import { useI18n } from '../utils/i18n'
+const { t } = useI18n()
 defineProps({
   tabs: Array,
   activeTabId: [String, Number],
