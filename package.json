@@ -25,7 +25,38 @@
     "win": {
       "target": "dir",
       "icon": "public/icon/app.png"
-    }
+    },
+    "mac": {
+      "icon": "public/icon/app.png"
+    },
+    "protocols": [
+      {
+        "name": "HTTP",
+        "schemes": ["http"]
+      },
+      {
+        "name": "HTTPS",
+        "schemes": ["https"]
+      }
+    ],
+    "fileAssociations": [
+      { "ext": "html", "name": "HTML Document", "role": "Viewer" },
+      { "ext": "htm", "name": "HTM Document", "role": "Viewer" },
+      { "ext": "xhtml", "name": "XHTML Document", "role": "Viewer" },
+      { "ext": "svg", "name": "SVG Image", "role": "Viewer" },
+      { "ext": "xml", "name": "XML Document", "role": "Viewer" },
+      { "ext": "txt", "name": "Text Document", "role": "Viewer" },
+      { "ext": "pdf", "name": "PDF Document", "role": "Viewer" },
+      { "ext": "mht", "name": "Web Archive", "role": "Viewer" },
+      { "ext": "webp", "name": "WebP Image", "role": "Viewer" },
+      { "ext": "png", "name": "PNG Image", "role": "Viewer" },
+      { "ext": "jpg", "name": "JPEG Image", "role": "Viewer" },
+      { "ext": "jpeg", "name": "JPEG Image", "role": "Viewer" },
+      { "ext": "gif", "name": "GIF Image", "role": "Viewer" },
+      { "ext": "bmp", "name": "BMP Image", "role": "Viewer" },
+      { "ext": "mp4", "name": "MP4 Video", "role": "Viewer" },
+      { "ext": "webm", "name": "WebM Video", "role": "Viewer" }
+    ]
   },
   "dependencies": {
     "vue": "^3.5.34"

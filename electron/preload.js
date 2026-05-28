@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDownloadDone: (callback) => ipcRenderer.on('download:done', (_e, data) => callback(data)),
 
   setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
+  isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
 
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),

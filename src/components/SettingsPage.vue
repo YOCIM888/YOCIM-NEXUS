@@ -17,7 +17,10 @@
 
         <div class="setting-row">
           <span>{{ t('defaultBrowser') }}</span>
-          <button class="btn" @click="setDefaultBrowser">{{ t('setDefault') }}</button>
+          <div class="default-browser-row">
+            <span v-if="isDefaultBrowser" class="default-status">{{ t('isDefault') }}</span>
+            <button class="btn" @click="setDefaultBrowser">{{ t('setDefault') }}</button>
+          </div>
         </div>
 
         <div :class="['setting-row', { 'highlight-row': highlightLang }]">
@@ -842,6 +845,7 @@ async function saveProtocolSettings() {
 
 // 快捷键
 const showShortcuts = ref(false)
+const isDefaultBrowser = ref(false)
 const shortcutsList = [
   { key: 'Ctrl+T', desc: t('newTab') },
   { key: 'Ctrl+Shift+T', desc: '恢复关闭的标签页' },
@@ -917,6 +921,7 @@ function permissionLabel(type) {
 
 onMounted(() => {
   updateMenuLabels()
+  checkDefaultBrowser()
 })
 
 // ===== 基础设置 =====
@@ -1166,8 +1171,13 @@ async function selectBackupPath() {
 }
 
 // ===== 默认浏览器 =====
+async function checkDefaultBrowser() {
+  isDefaultBrowser.value = !!(await window.electronAPI?.isDefaultBrowser())
+}
+
 async function setDefaultBrowser() {
   await window.electronAPI?.setDefaultBrowser()
+  setTimeout(() => checkDefaultBrowser(), 500)
 }
 
 // ===== 密码管理 =====
@@ -1398,6 +1408,18 @@ function goToRelease() {
 @keyframes highlight-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.default-browser-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.default-status {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
 }
 
 .setting-info {
