@@ -21,6 +21,34 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 
 ## Features
 
+### AI Assistant
+
+YOCIM NEXUS integrates a powerful AI assistant with browser control capabilities. Configure your own API keys for OpenAI, Claude, DeepSeek, Groq, or any OpenAI-compatible endpoint (e.g. Ollama local models).
+
+**Chat Interface**
+
+- **Multi-model support** — Switch between multiple configured models; streaming responses with real-time display
+- **Chat bubbles** — AI messages on the left, user messages on the right; distinct visual styling for clarity
+- **Code rendering** — Code blocks are displayed in bordered containers with syntax highlighting headers and a copy-to-clipboard button
+- **Memory system** — AI summarizes conversations into long-term memories; configurable retention range (3/7/15/30 days or forever)
+
+**Browser Commands** (type `/` to show the command popover)
+
+| Command | Description |
+|---------|-------------|
+| `/fav` | **AI Bookmark Management** — AI reads your bookmark titles, creates categorized folders, and organizes bookmarks automatically. Confirm before executing. |
+| `/set` | **AI Settings Control** — Change browser settings by chatting (theme, ad block, language, search engine, zoom, tabs position, hide logo/icons, incognito, session restore). Confirm before executing. |
+| `/exp` | **AI Extension Management** — Enable, disable, or remove Chrome extensions via natural language. Confirm before executing. |
+| `/his` | **AI History Management** — View, search, or delete browsing history entries by time range. Confirm before executing. |
+| `/mem` | **Summarize & Remember** — AI summarizes the current conversation and saves it as a memory for future context. (Alias for `/memory`) |
+
+**Privacy**
+- All commands execute with a **confirmation step** — no automatic changes to your browser
+- **URLs are never sent** to AI providers — only bookmark/history titles are used for context
+- All AI processing happens through your own API keys; no data passes through third-party servers beyond your configured AI provider
+
+---
+
 ### Core Browsing
 
 - **Multi-tab** — Process isolation via Electron `webview`, each tab runs independently
@@ -70,7 +98,7 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Custom homepage background** — Set any image as wallpaper
 - **Hide logo / icons** — Minimalist mode: hide homepage logo and navigation grid
 - **Navigation grid** — Add, edit, delete, and drag-reorder shortcut cards on homepage
-- **Panel style customization** — Adjust width and background color for each sidebar panel individually:
+- **Panel style customization** — Adjust width and background color for each sidebar panel:
   - Bookmark panel
   - History panel
   - Download panel
@@ -81,7 +109,6 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 
 ### Tools
 
-- **AI Assistant** — Multi-model AI chat (OpenAI / Claude / DeepSeek / Groq / Ollama); streaming responses, multi-model config with API key management
 - **Download manager** — Real-time progress, speed display, pause/resume, open file/folder
 - **In-page search** — Ctrl+F with match count
 - **Split view** — Two tabs side by side for comparison
@@ -89,9 +116,9 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Print** — Print current page directly
 - **Picture-in-Picture** — Pop out video, always on top
 - **Extensions** — Install and manage Chrome extension directories
-- **Toolbar customization** — Toggle individual tool buttons (AI, Extensions, Bookmarks, History, Downloads, Reading List, Notes) in settings; default: AI, Bookmarks, History, Downloads
+- **Toolbar customization** — Toggle individual tool buttons in settings
 - **Update checker** — Detect latest release from GitHub
-- **Context menu** — Right-click for navigation, image actions (copy image, copy link, view image), print, screenshot
+- **Context menu** — Right-click for navigation, image actions, print, screenshot
 
 ### Data Management
 
@@ -145,8 +172,8 @@ Yocim-Browser/
 │   │   ├── HomePage.vue         # Homepage (logo, search, nav grid, context menus)
 │   │   ├── SettingsPage.vue     # Settings (7 sections)
 │   │   ├── NavBar.vue           # Navigation bar (address bar, toolbar buttons)
-│   │   ├── AiPanel.vue           # AI chat panel (multi-model, streaming)
-│   │   ├── ExtensionsPanel.vue   # Extensions manager
+│   │   ├── AiPanel.vue          # AI chat panel (multi-model, streaming, browser commands)
+│   │   ├── ExtensionsPanel.vue  # Extensions manager
 │   │   ├── TabBar.vue           # Tab bar (drag reorder, audio, freeze, split view)
 │   │   ├── TabContextMenu.vue   # Tab right-click context menu
 │   │   ├── VerticalTitleBar.vue # Vertical layout title bar
@@ -163,7 +190,7 @@ Yocim-Browser/
 │   │   ├── useWebview.js        # Webview interaction & navigation
 │   │   ├── useKeyboard.js       # Keyboard shortcuts handler
 │   │   ├── useDownloads.js      # Download management
-│   │   └── useAi.js             # AI model config & streaming API
+│   │   └── useAi.js             # AI model config, streaming API, browser commands
 │   └── utils/
 │       ├── i18n.js              # Internationalization (zh/en)
 │       └── storage.js           # Data persistence & password management
