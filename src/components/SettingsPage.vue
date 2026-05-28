@@ -25,6 +25,11 @@
           <select v-model="currentLang" @change="changeLanguage" class="select-input">
             <option value="zh">{{ t('chinese') }}</option>
             <option value="en">{{ t('english') }}</option>
+            <option value="es">{{ t('spanish') }}</option>
+            <option value="fr">{{ t('french') }}</option>
+            <option value="ja">{{ t('japanese') }}</option>
+            <option value="ko">{{ t('korean') }}</option>
+            <option value="ar">{{ t('arabic') }}</option>
           </select>
         </div>
 
@@ -292,6 +297,19 @@
         <div class="setting-row">
           <span>{{ t('panelBgColor') }}</span>
           <input type="color" :value="extensionsPanelBg || '#3a3a3a'" @input="e => { extensionsPanelBg = e.target.value; changeExtensionsPanelBg() }" />
+        </div>
+
+        <h3 class="sub-heading">{{ t('aiPanelStyle') }}</h3>
+        <div class="setting-row">
+          <span>{{ t('panelWidth') }}</span>
+          <div class="setting-actions">
+            <input type="range" min="280" max="600" step="10" v-model.number="aiPanelWidth" @change="changeAiPanelWidth" class="zoom-slider" />
+            <span class="zoom-value">{{ aiPanelWidth }}px</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span>{{ t('panelBgColor') }}</span>
+          <input type="color" :value="aiPanelBg || '#3a3a3a'" @input="e => { aiPanelBg = e.target.value; changeAiPanelBg() }" />
         </div>
       </div>
 
@@ -657,7 +675,7 @@
 
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
-import { getSettings, updateSettings, exportAllData, importAllData, clearAllData, resetAllSettings, hasPasswordPin, getPasswordPin, setPasswordPin, verifyPasswordPin, getPasswords, addPassword, updatePasswordItem, removePasswordItem } from '../utils/storage'
+import { getSettings, updateSettings, exportAllData, importAllData, clearAllData, hasPasswordPin, getPasswordPin, setPasswordPin, verifyPasswordPin, getPasswords, addPassword, updatePasswordItem, removePasswordItem } from '../utils/storage'
 import { useI18n } from '../utils/i18n'
 
 const { t, setLocale, getLocale } = useI18n()
@@ -714,6 +732,8 @@ const notesPanelWidth = ref(settings.value.notesPanelWidth || 260)
 const notesPanelBg = ref(settings.value.notesPanelBg || '')
 const extensionsPanelWidth = ref(settings.value.extensionsPanelWidth || 260)
 const extensionsPanelBg = ref(settings.value.extensionsPanelBg || '')
+const aiPanelWidth = ref(settings.value.aiPanelWidth || 380)
+const aiPanelBg = ref(settings.value.aiPanelBg || '')
 
 function defaultCustomColors() {
   return {
@@ -813,8 +833,8 @@ async function saveProtocolSettings() {
   if (window.electronAPI?.updateProtocolSettings) {
     await window.electronAPI.updateProtocolSettings({
       mode: protocolBlockMode.value,
-      whitelist: protocolWhitelist.value,
-      blacklist: protocolBlacklist.value,
+      whitelist: [...protocolWhitelist.value],
+      blacklist: [...protocolBlacklist.value],
     })
   }
   showProtocolDialog.value = false
@@ -1037,6 +1057,14 @@ function changeExtensionsPanelBg() {
   settings.value = updateSettings({ extensionsPanelBg: extensionsPanelBg.value })
   refreshSettings()
 }
+function changeAiPanelWidth() {
+  settings.value = updateSettings({ aiPanelWidth: aiPanelWidth.value })
+  refreshSettings()
+}
+function changeAiPanelBg() {
+  settings.value = updateSettings({ aiPanelBg: aiPanelBg.value })
+  refreshSettings()
+}
 
 function changeIncognito() {
   settings.value = updateSettings({ incognitoBrowsing: incognitoBrowsing.value })
@@ -1089,6 +1117,9 @@ async function handleExport() {
     // 合并外部配置（权限设置、协议设置等）
     const external = await window.electronAPI?.getExternalSettings()
     if (external) parsed._external = external
+    // 合并扩展数据
+    const extensions = await window.electronAPI?.getExtensionsData()
+    if (extensions && extensions.length > 0) parsed._extensions = extensions
     const filePath = dir + '\\yocim-nexus-backup.json'
     await window.electronAPI?.writeFile(filePath, JSON.stringify(parsed, null, 2))
   }
@@ -1105,6 +1136,11 @@ async function handleImport() {
     if (parsed._external) {
       await window.electronAPI?.setExternalSettings(parsed._external)
       delete parsed._external
+    }
+    // 提取并恢复扩展数据
+    if (parsed._extensions) {
+      await window.electronAPI?.setExtensionsData(parsed._extensions)
+      delete parsed._extensions
     }
     importAllData(JSON.stringify(parsed))
   } catch (e) {
@@ -1255,9 +1291,12 @@ async function handleClearData() {
 }
 
 // ===== 复原默认 =====
-function handleRestoreDefaults() {
+async function handleRestoreDefaults() {
   if (!confirm(t('restoreDefaultsConfirm'))) return
-  resetAllSettings()
+  // 清除 localStorage 数据
+  clearAllData()
+  // 清除主进程数据（settings.json + extensions.json + Session）
+  await window.electronAPI?.restoreDefaultSettings()
   location.reload()
 }
 
@@ -1881,6 +1920,7 @@ function goToRelease() {
 .protocol-modal {
   width: 520px;
   max-height: 80vh;
+  overflow-y: auto;
 }
 
 .protocol-mode-section {

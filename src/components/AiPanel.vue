@@ -3,6 +3,12 @@
     <div class="ai-header">
       <span class="ai-title">{{ t('aiAssistant') }}</span>
       <div class="ai-header-actions">
+        <button class="ai-icon-btn" @click="doNewConversation" :title="t('aiNewChat')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="ai-icon-btn" @click="toggleHistory" :title="t('aiHistoryConversations')" :class="{ active: showHistory }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </button>
         <button class="ai-icon-btn" @click="toggleMemory" :title="t('aiMemory')" :class="{ active: showMemory }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M8 21h8"/><path d="M10 14h4"/></svg>
         </button>
@@ -52,6 +58,28 @@
               <button class="ai-memory-btn" @click="cancelMemoryEdit">{{ t('cancel') }}</button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 历史对话面板 -->
+    <div v-if="showHistory" class="ai-history-panel">
+      <div v-if="conversationList.length === 0" class="ai-history-empty">
+        <p>{{ t('aiNoConversations') }}</p>
+      </div>
+      <div v-else class="ai-history-list">
+        <div
+          v-for="conv in conversationList"
+          :key="conv.id"
+          :class="['ai-history-item', { active: conv.id === activeConversationId }]"
+          @click="doSwitchConversation(conv.id)"
+          @contextmenu.prevent="openConvContextMenu($event, conv)"
+        >
+          <div class="ai-history-item-main">
+            <span class="ai-history-item-title">{{ conv.title || t('aiConversationDefaultTitle') }}</span>
+            <span class="ai-history-item-time">{{ formatTime(conv.updatedAt) }}</span>
+          </div>
+          <span v-if="conv.id === activeConversationId" class="ai-history-item-active">{{ t('aiActive') }}</span>
         </div>
       </div>
     </div>
@@ -139,7 +167,7 @@
     </div>
 
     <!-- 对话区域 -->
-    <div v-if="!showSettings && !showMemory" class="ai-chat">
+    <div v-if="!showSettings && !showMemory && !showHistory" class="ai-chat">
       <!-- 未配置状态 -->
       <div v-if="!activeModel" class="ai-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="ai-empty-icon">
@@ -159,7 +187,7 @@
           </div>
           <div v-for="(msg, i) in messages" :key="i" :class="['ai-message', msg.role]">
             <span class="ai-message-label">{{ msg.role === 'user' ? 'You' : activeModel.name }}</span>
-            <div class="ai-message-bubble">
+            <div class="ai-message-bubble" @contextmenu.prevent="openMsgContextMenu($event, msg, i)">
               <template v-for="(part, pi) in parseMessageParts(msg.content)" :key="pi">
                 <div v-if="part.type === 'code'" class="ai-code-block">
                   <div class="ai-code-header">
@@ -216,13 +244,14 @@
                 <span class="ai-command-desc">{{ t(cmd.descKey) }}</span>
               </div>
             </div>
-            <input
+            <textarea
               v-model="inputText"
               class="ai-input"
               placeholder="输入消息，或输入 / 执行浏览器操作..."
-              @keydown.enter="handleSend"
+              @keydown="onInputKeydown"
               @input="onInputChange"
               :disabled="isStreaming"
+              rows="1"
             />
           </div>
           <button class="ai-send-btn" @click="handleSend" :disabled="isStreaming || !inputText.trim()">
@@ -242,22 +271,46 @@
         </div>
       </div>
     </div>
+
+    <!-- 消息右键菜单 -->
+    <Teleport to="body">
+      <div v-if="msgCtxMenu.show" class="ai-ctx-overlay" @click="msgCtxMenu.show = false" @contextmenu.prevent="msgCtxMenu.show = false">
+        <div class="ai-ctx-menu" :style="{ left: msgCtxMenu.x + 'px', top: msgCtxMenu.y + 'px' }">
+          <button @click="doCopyMessage">{{ t('aiCopyMessage') }}</button>
+          <button @click="doDeleteMessage">{{ t('aiDeleteMessage') }}</button>
+          <button v-if="msgCtxMenu.msg?.role === 'assistant'" @click="doReReply">{{ t('aiReReply') }}</button>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 对话右键菜单 -->
+    <Teleport to="body">
+      <div v-if="convCtxMenu.show" class="ai-ctx-overlay" @click="convCtxMenu.show = false" @contextmenu.prevent="convCtxMenu.show = false">
+        <div class="ai-ctx-menu" :style="{ left: convCtxMenu.x + 'px', top: convCtxMenu.y + 'px' }">
+          <button @click="doRenameConversation">{{ t('aiRenameConversation') }}</button>
+          <button @click="doDeleteConversationConfirm">{{ t('aiDeleteConversation') }}</button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from '../utils/i18n'
-import { AI_PROVIDERS, AI_DEFAULT_SYSTEM_PROMPT } from '../utils/storage'
+import { AI_PROVIDERS, AI_DEFAULT_SYSTEM_PROMPT, renameConversation, deleteConversation, getAllConversations } from '../utils/storage'
 import { useAi, getAllCommands } from '../composables/useAi'
 
 const { t } = useI18n()
 const {
   messages, isStreaming, error, activeModel, config,
   memories, memoryRange, pendingActions,
+  activeConversationId, conversationList,
   addModel, updateModel, deleteModel,
   enableModel, disableModel, maskApiKey,
-  clearMessages, clearCurrentConversation, sendMessage, summarizeConversation,
+  clearMessages, clearCurrentConversation, newConversation, switchConversation,
+  deleteMessage, reReply, refreshConversationList,
+  sendMessage, summarizeConversation,
   updateMemoryItem, deleteMemoryItem, setMemoryRangeDays,
   getActiveMemories, confirmPendingActions, cancelPendingActions,
 } = useAi()
@@ -270,6 +323,7 @@ defineEmits(['close'])
 
 const showSettings = ref(false)
 const showMemory = ref(false)
+const showHistory = ref(false)
 const showForm = ref(false)
 const showClearConfirm = ref(false)
 const showCommandPopover = ref(false)
@@ -280,6 +334,9 @@ const inputText = ref('')
 const streamingContent = ref('')
 const formApiKeyFocused = ref(false)
 const messagesContainer = ref(null)
+
+const msgCtxMenu = ref({ show: false, x: 0, y: 0, msg: null, index: -1 })
+const convCtxMenu = ref({ show: false, x: 0, y: 0, conv: null })
 
 const allCommands = getAllCommands()
 
@@ -387,12 +444,18 @@ function onApiKeyBlur() {
 
 function toggleMemory() {
   showMemory.value = !showMemory.value
-  if (showMemory.value) showSettings.value = false
+  if (showMemory.value) { showSettings.value = false; showHistory.value = false }
 }
 
 function toggleSettings() {
   showSettings.value = !showSettings.value
-  if (showSettings.value) showMemory.value = false
+  if (showSettings.value) { showMemory.value = false; showHistory.value = false }
+}
+
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  if (showHistory.value) { showSettings.value = false; showMemory.value = false }
+  if (showHistory.value) refreshConversationList()
 }
 
 function confirmClearChat() {
@@ -402,7 +465,94 @@ function confirmClearChat() {
 
 function doClearChat() {
   clearCurrentConversation()
+  refreshConversationList()
   showClearConfirm.value = false
+}
+
+// 新建对话
+function doNewConversation() {
+  newConversation()
+}
+
+// 切换对话
+function doSwitchConversation(id) {
+  switchConversation(id)
+  showHistory.value = false
+}
+
+// 消息右键菜单
+function openMsgContextMenu(e, msg, index) {
+  msgCtxMenu.value = { show: true, x: e.clientX, y: e.clientY, msg, index }
+}
+
+function doCopyMessage() {
+  const msg = msgCtxMenu.value.msg
+  if (msg) copyText(msg.content)
+  msgCtxMenu.value.show = false
+}
+
+function doDeleteMessage() {
+  deleteMessage(msgCtxMenu.value.index)
+  msgCtxMenu.value.show = false
+}
+
+function doReReply() {
+  const idx = msgCtxMenu.value.index
+  msgCtxMenu.value.show = false
+  reReply(idx,
+    (chunk, full) => { streamingContent.value = full },
+    () => { streamingContent.value = ''; scrollToBottom() },
+    (err) => { streamingContent.value = ''; scrollToBottom() }
+  )
+}
+
+// 对话右键菜单
+function openConvContextMenu(e, conv) {
+  convCtxMenu.value = { show: true, x: e.clientX, y: e.clientY, conv }
+}
+
+function doRenameConversation() {
+  const conv = convCtxMenu.value.conv
+  convCtxMenu.value.show = false
+  if (!conv) return
+  setTimeout(() => {
+    const newName = window.prompt(t('aiRenameConversation'), conv.title)
+    if (newName && newName.trim()) {
+      renameConversation(conv.id, newName.trim())
+      refreshConversationList()
+    }
+  }, 0)
+}
+
+function doDeleteConversationConfirm() {
+  const conv = convCtxMenu.value.conv
+  convCtxMenu.value.show = false
+  if (!conv) return
+  setTimeout(() => {
+    if (window.confirm(t('aiDeleteConversationConfirm'))) {
+      deleteConversation(conv.id)
+      refreshConversationList()
+      if (conv.id === activeConversationId.value) {
+        const data = getAllConversations()
+        if (data.conversations.length > 0) {
+          const last = data.conversations[data.conversations.length - 1]
+          activeConversationId.value = last.id
+          messages.value = last.messages || []
+        } else {
+          activeConversationId.value = ''
+          messages.value = []
+        }
+      }
+    }
+  }, 0)
+}
+
+// 输入键盘处理
+function onInputKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+    e.preventDefault()
+    handleSend()
+  }
 }
 
 function onRangeChange() {
@@ -533,7 +683,6 @@ watch(pendingActions, () => {
   border-left: 1px solid var(--border-color);
   box-shadow: -4px 0 20px var(--modal-shadow);
   z-index: 50;
-  width: 380px;
 }
 
 .ai-header {
@@ -707,6 +856,115 @@ watch(pendingActions, () => {
 .ai-memory-edit-actions {
   display: flex;
   gap: 6px;
+}
+
+/* 历史对话面板 */
+.ai-history-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.ai-history-empty {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.ai-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--bg-primary);
+}
+
+.ai-history-item:hover {
+  background: var(--bg-secondary);
+}
+
+.ai-history-item.active {
+  border-color: var(--accent);
+  background: var(--bg-secondary);
+}
+
+.ai-history-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-history-item-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-history-item-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.ai-history-item-active {
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+/* 右键菜单 */
+.ai-ctx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: transparent;
+  transform: translateZ(0);
+  -webkit-app-region: no-drag;
+}
+
+.ai-ctx-menu {
+  position: fixed;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 10000;
+  transform: translateZ(0);
+  -webkit-app-region: no-drag;
+}
+
+.ai-ctx-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-radius: 4px;
+}
+
+.ai-ctx-menu button:hover {
+  background: var(--bg-secondary);
 }
 
 /* 设置面板 */
@@ -1177,6 +1435,11 @@ watch(pendingActions, () => {
   background: var(--input-bg);
   color: var(--text-primary);
   box-sizing: border-box;
+  font-family: inherit;
+  resize: none;
+  max-height: 5.2em;
+  line-height: 1.3;
+  overflow-y: auto;
 }
 
 .ai-input:focus {
