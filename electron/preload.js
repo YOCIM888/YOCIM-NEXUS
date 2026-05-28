@@ -39,11 +39,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkUpdate: () => ipcRenderer.invoke('check-update'),
   openReleasePage: (url) => ipcRenderer.invoke('open-release-page', url),
 
-  // 开发者工具
+  // 开发者工具（内嵌面板）
   getWebviewPreloadPath: () => ipcRenderer.invoke('get-webview-preload-path'),
-  toggleDevTools: () => ipcRenderer.invoke('toggle-devtools'),
-  closeShellDevTools: () => ipcRenderer.invoke('close-shell-devtools'),
-  isDevToolsOpened: () => ipcRenderer.invoke('is-devtools-opened'),
+  toggleEmbeddedDevTools: (bounds) => ipcRenderer.invoke('toggle-embedded-devtools', bounds),
+  closeDevToolsPanel: () => ipcRenderer.invoke('close-devtools-panel'),
+  isDevToolsPanelOpen: () => ipcRenderer.invoke('is-devtools-panel-open'),
+  updateDevToolsBounds: (bounds) => ipcRenderer.invoke('update-devtools-bounds', bounds),
+  onDevToolsStateChanged: (callback) => ipcRenderer.on('devtools-state-changed', (_e, open) => callback(open)),
   onGlobalKeydown: (callback) => ipcRenderer.on('global-keydown', (_e, data) => callback(data)),
 
   // 标签页冻结

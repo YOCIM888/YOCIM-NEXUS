@@ -24,8 +24,8 @@ export const AI_PROVIDERS = {
 }
 
 const defaultNavSites = [
-  { id: '1', name: 'YOCIM轻站', url: 'https://yocim.top', icon: 'https://yocim.top/public/images/xiyue.webp' },
-  { id: '2', name: 'YOCIM工具', url: 'https://workbench.yocim.top', icon: 'https://workbench.yocim.top/icon/YOCIM.png' },
+  { id: '1', name: 'YOCIM工具', url: 'https://workbench.yocim.top', icon: 'https://workbench.yocim.top/icon/YOCIM.png' },
+  { id: '2', name: 'YOCIM轻站', url: 'https://yocim.top', icon: 'https://yocim.top/public/images/xiyue.webp' },
   { id: '3', name: 'GitHub', url: 'https://github.com', icon: 'https://github.githubassets.com/favicons/favicon.svg' },
   { id: '4', name: 'Vercel', url: 'https://vercel.com', icon: 'https://image.uisdc.com/wp-content/uploads/2025/10/nav-logo-Vercel.webp' },
   { id: '5', name: 'GitLab', url: 'https://gitlab.com', icon: 'https://gitlab.com/favicon.png' },

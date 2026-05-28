@@ -3,7 +3,7 @@ export function useKeyboard(callbacks) {
     addTab, closeTab, activeTabId, reload, toggleBookmark,
     togglePanel, showFindBar, switchTab, tabs, toggleDevTools,
     takeScreenshot, toggleFullscreen, urlInputRef, goBack, goForward,
-    webviewRefs
+    webviewRefs, restoreClosedTab, toggleResponsive
   } = callbacks
 
   function handleGlobalKeydown(e) {
@@ -140,6 +140,12 @@ export function useKeyboard(callbacks) {
       return
     }
 
+    if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (e.key === 'D' || e.key === 'd')) {
+      e.preventDefault()
+      toggleResponsive()
+      return
+    }
+
     if (e.key === 'Escape' && !isInput) {
       const wv = webviewRefs[activeTabId.value]
       if (wv) wv.stop()
@@ -155,12 +161,6 @@ export function useKeyboard(callbacks) {
     if (e.key === 'F11') {
       e.preventDefault()
       toggleFullscreen()
-      return
-    }
-
-    if (e.key === 'F12') {
-      e.preventDefault()
-      toggleDevTools()
       return
     }
 

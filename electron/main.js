@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, dialog, shell, session, webContents, clipboard } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, dialog, shell, session, webContents, clipboard, WebContentsView } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +24,68 @@ const activeDownloads = new Map()
 const installedExtensions = new Map()
 let downloadPath = ''
 let pendingOpenFile = null
+
+// ===== 内嵌 DevTools 面板 (WebContentsView) =====
+let devToolsView = null
+let devToolsTargetWc = null
+
+function ensureDevToolsView() {
+  if (devToolsView) return
+  devToolsView = new WebContentsView()
+  devToolsView.setBackgroundColor('#1e1e1e')
+  if (win && !win.isDestroyed()) {
+    if (devToolsView.webContents) {
+      win.webContents.setDevToolsWebContents(devToolsView.webContents)
+    }
+  }
+}
+
+function isDevToolsPanelOpen() {
+  return devToolsTargetWc !== null
+}
+
+function showDevToolsPanel(target, bounds) {
+  ensureDevToolsView()
+
+  // 切换目标时，异步关闭旧目标的 DevTools（已完全初始化，关闭无阻塞）
+  const prevTarget = devToolsTargetWc
+  if (prevTarget && prevTarget !== target) {
+    setImmediate(() => {
+      try { prevTarget.closeDevTools() } catch (_) {}
+    })
+  }
+
+  // 设置重定向到新目标
+  if (target !== devToolsTargetWc) {
+    if (devToolsView.webContents) {
+      target.setDevToolsWebContents(devToolsView.webContents)
+    }
+  }
+  devToolsTargetWc = target
+
+  // 立即显示面板
+  devToolsView.setBounds(bounds)
+  if (!win.contentView.children.includes(devToolsView)) {
+    win.contentView.addChildView(devToolsView)
+  }
+
+  // 如果目标还没打开 DevTools，异步打开（初始化慢，不阻塞 UI）
+  if (!target.isDevToolsOpened()) {
+    setImmediate(() => {
+      try { target.openDevTools({ mode: 'detach' }) } catch (_) {}
+    })
+  }
+}
+
+function hideDevToolsPanel() {
+  devToolsTargetWc = null
+
+  // 只移除面板 view，不关闭 DevTools
+  // CDP 连接保持活跃，避免关闭时初始化阻塞和下次打开重新连接
+  if (devToolsView && win && !win.isDestroyed()) {
+    try { win.contentView.removeChildView(devToolsView) } catch (_) {}
+  }
+}
 
 const gotTheLock = app.requestSingleInstanceLock()
 
@@ -409,18 +471,32 @@ function shouldBlockUrl(url) {
 }
 
 function setupProtocolWebRequest(sessionObj) {
-  sessionObj.webRequest.onBeforeRequest((details, callback) => {
-    if (shouldBlockUrl(details.url)) {
-      callback({ cancel: true })
-    } else {
-      callback({})
+  sessionObj.webRequest.onBeforeRequest(
+    { urls: ['http://*/*', 'https://*/*', 'ftp://*/*'] },
+    (details, callback) => {
+      if (shouldBlockUrl(details.url)) {
+        callback({ cancel: true })
+      } else {
+        callback({})
+      }
     }
-  })
+  )
 }
 
 app.on('web-contents-created', (_event, contents) => {
   const isWebview = contents.getType() === 'webview'
   if (!isWebview) return
+
+  // 将 webview 的 DevTools 重定向到内嵌面板
+  if (devToolsView && devToolsView.webContents) {
+    contents.setDevToolsWebContents(devToolsView.webContents)
+  }
+  contents.on('devtools-closed', () => {
+    if (devToolsTargetWc === contents) {
+      hideDevToolsPanel()
+      sendToWin('devtools-state-changed', false)
+    }
+  })
 
   // webview 下载也走统一处理器
   setupDownloadHandler(contents.session)
@@ -471,10 +547,7 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return
     if (!input.control && !input.meta && !input.alt && !input.shift) {
-      if (input.key === 'F12' || input.key === 'F5' || input.key === 'F11') {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('global-keydown', { key: input.key })
-        }
+      if (input.key === 'F5' || input.key === 'F11') {
         event.preventDefault()
       }
     }
@@ -513,13 +586,13 @@ app.on('web-contents-created', (_event, contents) => {
       template.push({
         label: '检查',
         click: () => {
-          if (contents.isDevToolsOpened()) {
-            contents.closeDevTools()
+          if (isDevToolsPanelOpen()) {
+            hideDevToolsPanel()
+            sendToWin('devtools-state-changed', false)
           } else {
-            if (win && !win.isDestroyed() && win.webContents.isDevToolsOpened()) {
-              win.webContents.closeDevTools()
-            }
-            contents.openDevTools({ mode: 'right' })
+            const [ww, wh] = win.getSize()
+            showDevToolsPanel(contents, { x: ww - 450, y: 76, width: 450, height: wh - 76 })
+            sendToWin('devtools-state-changed', true)
           }
         },
       })
@@ -645,12 +718,14 @@ function createWindow() {
       {
         label: '检查',
         click: () => {
-          if (win && !win.isDestroyed()) {
-            if (win.webContents.isDevToolsOpened()) {
-              win.webContents.closeDevTools()
-            } else {
-              win.webContents.openDevTools({ mode: 'right' })
-            }
+          if (!win || win.isDestroyed()) return
+          if (isDevToolsPanelOpen()) {
+            hideDevToolsPanel()
+            sendToWin('devtools-state-changed', false)
+          } else {
+            const [ww, wh] = win.getSize()
+            showDevToolsPanel(win.webContents, { x: ww - 450, y: 76, width: 450, height: wh - 76 })
+            sendToWin('devtools-state-changed', true)
           }
         },
       },
@@ -669,6 +744,22 @@ function createWindow() {
     if (pendingOpenFile) {
       win.webContents.send('open-local-file', pendingOpenFile)
       pendingOpenFile = null
+    }
+  })
+
+  // Shell DevTools 关闭事件
+  win.webContents.on('devtools-closed', () => {
+    if (devToolsTargetWc === win.webContents) {
+      hideDevToolsPanel()
+      sendToWin('devtools-state-changed', false)
+    }
+  })
+
+  // 窗口大小改变时更新 DevTools 面板位置
+  win.on('resize', () => {
+    if (devToolsView && devToolsTargetWc) {
+      const [ww, wh] = win.getSize()
+      devToolsView.setBounds({ x: ww - 450, y: 76, width: 450, height: wh - 76 })
     }
   })
 }
@@ -993,40 +1084,56 @@ ipcMain.handle('open-release-page', (_e, url) => {
 })
 
 // ===== 开发者工具 =====
+let devToolsToggling = false
+
 ipcMain.handle('get-webview-preload-path', () => {
   return path.join(__dirname, 'webview-preload.js')
 })
 
-ipcMain.handle('toggle-devtools', () => {
-  if (win && !win.isDestroyed()) {
+ipcMain.handle('toggle-embedded-devtools', (_e, bounds) => {
+  if (!win || win.isDestroyed()) return false
+  if (devToolsToggling) return false
+
+  devToolsToggling = true
+  try {
+    if (isDevToolsPanelOpen()) {
+      hideDevToolsPanel()
+      sendToWin('devtools-state-changed', false)
+      return false
+    }
+
+    // 查找当前活跃的 webview
     const allWc = webContents.getAllWebContents()
-    for (const wc of allWc) {
-      if (wc.getType() === 'webview' && wc.isDevToolsOpened()) {
-        wc.closeDevTools()
-      }
-    }
-    if (win.webContents.isDevToolsOpened()) {
-      win.webContents.closeDevTools()
-    } else {
-      win.webContents.openDevTools({ mode: 'right' })
-    }
-    return win.webContents.isDevToolsOpened()
+    const webviews = allWc.filter(wc => wc.getType() === 'webview' && !wc.isDestroyed())
+    const target = webviews.length > 0 ? webviews[webviews.length - 1] : win.webContents
+
+    const [ww, wh] = win.getSize()
+    const panelBounds = bounds || { x: ww - 450, y: 76, width: 450, height: wh - 76 }
+    showDevToolsPanel(target, panelBounds)
+    sendToWin('devtools-state-changed', true)
+    return true
+  } finally {
+    // 延迟解锁，让 devtools-closed 等异步事件先处理完
+    setTimeout(() => { devToolsToggling = false }, 300)
   }
-  return false
 })
 
-ipcMain.handle('close-shell-devtools', () => {
-  if (win && !win.isDestroyed() && win.webContents.isDevToolsOpened()) {
-    win.webContents.closeDevTools()
+ipcMain.handle('close-devtools-panel', () => {
+  if (isDevToolsPanelOpen()) {
+    hideDevToolsPanel()
+    sendToWin('devtools-state-changed', false)
   }
   return true
 })
 
-ipcMain.handle('is-devtools-opened', () => {
-  if (win && !win.isDestroyed()) {
-    return win.webContents.isDevToolsOpened()
+ipcMain.handle('is-devtools-panel-open', () => {
+  return isDevToolsPanelOpen()
+})
+
+ipcMain.handle('update-devtools-bounds', (_e, bounds) => {
+  if (devToolsView && devToolsTargetWc && win && !win.isDestroyed()) {
+    devToolsView.setBounds(bounds)
   }
-  return false
 })
 
 // ===== 标签页冻结 =====

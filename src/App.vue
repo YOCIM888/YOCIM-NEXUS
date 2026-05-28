@@ -97,12 +97,25 @@
       @close="showFindBar = false"
     />
 
-    <div class="content-area" :class="{ 'split-mode': activeTab?.splitWith }" @click="closeAllPanels">
+    <div class="content-area" :class="{ 'split-mode': activeTab?.splitWith, 'devtools-open': devToolsOpen, 'responsive-active': responsiveEnabled }" @click="closeAllPanels">
+      <ResponsiveToolbar
+        v-if="responsiveEnabled"
+        :selectedPresetName="selectedPresetName"
+        :displayWidth="displayWidth"
+        :displayHeight="displayHeight"
+        :zoomMode="zoomMode"
+        @close="responsiveEnabled = false"
+        @update:displayWidth="setDisplayWidth"
+        @update:displayHeight="setDisplayHeight"
+        @selectPreset="selectPreset"
+        @rotateDevice="rotateDevice"
+        @update:zoomMode="zoomMode = $event"
+      />
       <div
         v-for="tab in tabs"
         :key="tab.id"
         v-show="tab.id === activeTabId || tab.id === activeTab?.splitWith"
-        :class="['tab-content', { 'split-half': tab.splitWith }]"
+        :class="['tab-content', { 'split-half': tab.splitWith, 'responsive-active': responsiveEnabled }]"
       >
         <HomePage
           v-if="tab.isHome"
@@ -119,10 +132,10 @@
         <webview
           v-else
           :ref="el => setWebviewRef(tab.id, el)"
-          class="webview"
+          :class="['webview', { 'responsive-active': responsiveEnabled }]"
           :partition="tab.partition"
           :preload="webviewPreloadPath"
-          :style="tabContextMenu.show ? { pointerEvents: 'none' } : {}"
+          :style="webviewStyle"
           allowpopups
         ></webview>
         <div v-if="tab.isSuspended && tab.id === activeTabId" class="suspended-overlay" @click="switchTab(tab.id)">
@@ -223,6 +236,8 @@ import { useDownloads } from './composables/useDownloads'
 import { useWebview } from './composables/useWebview'
 import { useTabs } from './composables/useTabs'
 import { useKeyboard } from './composables/useKeyboard'
+import { useResponsive } from './composables/useResponsive'
+import ResponsiveToolbar from './components/ResponsiveToolbar.vue'
 import LangDialog from './components/LangDialog.vue'
 import VerticalTitleBar from './components/VerticalTitleBar.vue'
 import TabBar from './components/TabBar.vue'
@@ -287,6 +302,60 @@ async function respondPermission(allowed) {
 }
 
 const urlInputRef = computed(() => navBarRef.value?.urlInputRef)
+
+// DevTools 内嵌面板状态
+const devToolsOpen = ref(false)
+
+// 响应式预览状态
+const {
+  responsiveEnabled, selectedPresetName, displayWidth, displayHeight,
+  zoomMode, deviceWidth, deviceHeight,
+  selectPreset, setDisplayWidth, setDisplayHeight, rotateDevice, toggleResponsive,
+} = useResponsive()
+
+const responsiveScale = computed(() => {
+  if (!responsiveEnabled.value || zoomMode.value !== 'fit') {
+    return parseFloat(zoomMode.value) || 1
+  }
+  const ca = document.querySelector('.content-area')
+  if (!ca) return 1
+  const rect = ca.getBoundingClientRect()
+  const toolbarH = 36
+  const availW = rect.width - 16
+  const availH = rect.height - toolbarH - 16
+  const s = Math.min(availW / deviceWidth.value, availH / deviceHeight.value, 1)
+  return Math.max(s, 0.25)
+})
+
+const webviewStyle = computed(() => {
+  const style = {}
+  if (tabContextMenu.show) style.pointerEvents = 'none'
+  if (responsiveEnabled.value) {
+    style.width = deviceWidth.value + 'px'
+    style.height = deviceHeight.value + 'px'
+    const s = responsiveScale.value
+    if (s < 1) {
+      style.transform = `scale(${s})`
+      style.transformOrigin = 'top center'
+    }
+  }
+  return style
+})
+
+function updateDevToolsBounds() {
+  if (!devToolsOpen.value) return
+  const contentArea = document.querySelector('.content-area')
+  if (!contentArea) return
+  const rect = contentArea.getBoundingClientRect()
+  const bounds = {
+    x: Math.round(rect.right),
+    y: Math.round(rect.top),
+    width: 450,
+    height: Math.round(rect.height),
+  }
+  if (bounds.x < 0) bounds.x = 0
+  window.electronAPI?.updateDevToolsBounds(bounds)
+}
 
 async function toggleFullscreen() {
   await window.electronAPI?.toggleFullscreen()
@@ -493,7 +562,7 @@ const { handleGlobalKeydown } = useKeyboard({
   addTab, closeTab, activeTabId, reload, toggleBookmark,
   togglePanel, showFindBar, switchTab, tabs, toggleDevTools,
   takeScreenshot, toggleFullscreen, urlInputRef, goBack, goForward,
-  webviewRefs, restoreClosedTab
+  webviewRefs, restoreClosedTab, toggleResponsive
 })
 
 watch(activeTabId, () => {
@@ -606,14 +675,16 @@ onMounted(async () => {
   isFullscreen.value = await window.electronAPI?.windowIsFullscreen()
   document.addEventListener('keydown', handleGlobalKeydown)
   window.electronAPI?.onGlobalKeydown(({ key }) => {
-    if (key === 'F12') {
-      toggleDevTools()
-    } else if (key === 'F5') {
+    if (key === 'F5') {
       reload()
     } else if (key === 'F11') {
       toggleFullscreen()
     }
   })
+  window.electronAPI?.onDevToolsStateChanged((open) => {
+    devToolsOpen.value = open
+  })
+  window.addEventListener('resize', updateDevToolsBounds)
   window.electronAPI?.onContextAction(async ({ action, url, dataUrl }) => {
     if (action === 'open-url') {
       const tab = activeTab.value
@@ -700,6 +771,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleGlobalKeydown)
+  window.removeEventListener('resize', updateDevToolsBounds)
   if (backupInterval) clearInterval(backupInterval)
   if (suspendInterval) clearInterval(suspendInterval)
   if (downloadAutoHideTimer.value) clearTimeout(downloadAutoHideTimer.value)
@@ -718,6 +790,12 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   overflow: hidden;
+  margin-right: 0;
+  transition: margin-right 0.2s ease;
+}
+
+.content-area.devtools-open {
+  margin-right: 450px;
 }
 
 .content-area.split-mode {
@@ -740,6 +818,25 @@ onUnmounted(() => {
 .webview {
   width: 100%;
   height: 100%;
+}
+
+.content-area.responsive-active {
+  display: flex;
+  flex-direction: column;
+  background: #3a3a3a;
+}
+
+.tab-content.responsive-active {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
+}
+
+.webview.responsive-active {
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px #555;
 }
 
 .suspended-overlay {
