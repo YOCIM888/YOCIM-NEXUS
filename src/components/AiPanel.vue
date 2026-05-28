@@ -3,12 +3,56 @@
     <div class="ai-header">
       <span class="ai-title">{{ t('aiAssistant') }}</span>
       <div class="ai-header-actions">
-        <button class="ai-icon-btn" @click="showSettings = !showSettings" :title="t('aiSettings')">
+        <button class="ai-icon-btn" @click="toggleMemory" :title="t('aiMemory')" :class="{ active: showMemory }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4.5-3 5.7V17a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3v-2.3c-1.8-1.2-3-3.3-3-5.7a7 7 0 0 1 7-7z"/><path d="M8 21h8"/><path d="M10 14h4"/></svg>
+        </button>
+        <button class="ai-icon-btn" @click="confirmClearChat" :title="t('aiClearChat')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+        <button class="ai-icon-btn" @click="toggleSettings" :title="t('aiSettings')" :class="{ active: showSettings }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
         <button class="ai-icon-btn" @click="$emit('close')" :title="t('close')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
+      </div>
+    </div>
+
+    <!-- 记忆面板 -->
+    <div v-if="showMemory" class="ai-memory-panel">
+      <div class="ai-memory-header">
+        <label>{{ t('aiMemoryRange') }}</label>
+        <select v-model.number="memoryRangeDays" @change="onRangeChange">
+          <option :value="3">{{ t('aiMemoryRange3d') }}</option>
+          <option :value="7">{{ t('aiMemoryRange7d') }}</option>
+          <option :value="15">{{ t('aiMemoryRange15d') }}</option>
+          <option :value="30">{{ t('aiMemoryRange30d') }}</option>
+          <option :value="0">{{ t('aiMemoryRangeForever') }}</option>
+        </select>
+      </div>
+
+      <div v-if="filteredMemories.length === 0" class="ai-memory-empty">
+        <p>{{ t('aiNoMemories') }}</p>
+      </div>
+
+      <div v-else class="ai-memory-list">
+        <div v-for="mem in filteredMemories" :key="mem.id" class="ai-memory-item">
+          <div v-if="editingMemoryId !== mem.id" class="ai-memory-view">
+            <p class="ai-memory-summary">{{ mem.summary }}</p>
+            <span class="ai-memory-time">{{ formatTime(mem.createdAt) }}</span>
+            <div class="ai-memory-actions">
+              <button class="ai-memory-btn" @click="startEditMemory(mem)">{{ t('edit') }}</button>
+              <button class="ai-memory-btn ai-memory-delete-btn" @click="deleteMemoryItem(mem.id)">{{ t('delete') }}</button>
+            </div>
+          </div>
+          <div v-else class="ai-memory-edit">
+            <textarea v-model="editingMemoryText" class="ai-memory-edit-input"></textarea>
+            <div class="ai-memory-edit-actions">
+              <button class="ai-memory-btn" @click="saveMemoryEdit(mem.id)">{{ t('save') }}</button>
+              <button class="ai-memory-btn" @click="cancelMemoryEdit">{{ t('cancel') }}</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -75,6 +119,15 @@
           <span v-if="editingId && form._maskedKey && !formApiKeyFocused" class="ai-key-masked">{{ form._maskedKey }}</span>
         </div>
         <div class="ai-form-row">
+          <label>{{ t('aiSystemPrompt') }}</label>
+          <textarea
+            v-model="form.systemPrompt"
+            :placeholder="t('aiSystemPromptPlaceholder')"
+            rows="5"
+            class="ai-system-prompt-input"
+          ></textarea>
+        </div>
+        <div class="ai-form-row">
           <label>{{ t('aiTemperature') }}: {{ form.temperature.toFixed(1) }}</label>
           <input type="range" v-model.number="form.temperature" min="0" max="2" step="0.1" />
         </div>
@@ -86,7 +139,7 @@
     </div>
 
     <!-- 对话区域 -->
-    <div v-if="!showSettings" class="ai-chat">
+    <div v-if="!showSettings && !showMemory" class="ai-chat">
       <!-- 未配置状态 -->
       <div v-if="!activeModel" class="ai-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="ai-empty-icon">
@@ -94,7 +147,7 @@
         </svg>
         <p>{{ t('aiNotConfigured') }}</p>
         <p class="ai-empty-desc">{{ t('aiNotConfiguredDesc') }}</p>
-        <button class="btn" @click="showSettings = true">{{ t('aiGoSettings') }}</button>
+        <button class="btn" @click="toggleSettings">{{ t('aiGoSettings') }}</button>
       </div>
 
       <!-- 对话界面 -->
@@ -134,20 +187,35 @@
         </div>
       </div>
     </div>
+
+    <!-- 清空确认弹窗 -->
+    <div v-if="showClearConfirm" class="ai-confirm-overlay" @click.stop>
+      <div class="ai-confirm-dialog">
+        <p>{{ t('aiClearChatConfirm') }}</p>
+        <div class="ai-confirm-actions">
+          <button class="btn" @click="doClearChat">{{ t('confirm') }}</button>
+          <button class="btn btn-secondary" @click="showClearConfirm = false">{{ t('cancel') }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from '../utils/i18n'
-import { AI_PROVIDERS } from '../utils/storage'
+import { AI_PROVIDERS, AI_DEFAULT_SYSTEM_PROMPT } from '../utils/storage'
 import { useAi } from '../composables/useAi'
 
 const { t } = useI18n()
 const {
   messages, isStreaming, error, activeModel, config,
+  memories, memoryRange,
   addModel, updateModel, deleteModel,
-  enableModel, disableModel, maskApiKey, clearMessages, sendMessage
+  enableModel, disableModel, maskApiKey,
+  clearMessages, clearCurrentConversation, sendMessage, summarizeConversation,
+  updateMemoryItem, deleteMemoryItem, setMemoryRangeDays,
+  getActiveMemories,
 } = useAi()
 
 const props = defineProps({
@@ -157,12 +225,28 @@ const props = defineProps({
 defineEmits(['close'])
 
 const showSettings = ref(false)
+const showMemory = ref(false)
 const showForm = ref(false)
+const showClearConfirm = ref(false)
 const editingId = ref('')
+const editingMemoryId = ref('')
+const editingMemoryText = ref('')
 const inputText = ref('')
 const streamingContent = ref('')
 const formApiKeyFocused = ref(false)
 const messagesContainer = ref(null)
+
+const memoryRangeDays = computed({
+  get: () => memoryRange.value,
+  set: (val) => setMemoryRangeDays(val),
+})
+
+const filteredMemories = computed(() => {
+  const range = memoryRange.value
+  if (range === 0) return memories.value.entries
+  const cutoff = Date.now() - range * 24 * 60 * 60 * 1000
+  return memories.value.entries.filter(m => m.createdAt >= cutoff)
+})
 
 const form = ref({
   provider: 'openai',
@@ -170,6 +254,7 @@ const form = ref({
   modelId: '',
   apiEndpoint: '',
   apiKey: '',
+  systemPrompt: '',
   temperature: 0.7,
   _maskedKey: '',
 })
@@ -197,6 +282,7 @@ function startAddModel() {
     modelId: '',
     apiEndpoint: p.endpoint,
     apiKey: '',
+    systemPrompt: AI_DEFAULT_SYSTEM_PROMPT,
     temperature: 0.7,
     _maskedKey: '',
   }
@@ -211,6 +297,7 @@ function startEditModel(model) {
     modelId: model.modelId,
     apiEndpoint: model.apiEndpoint,
     apiKey: model.apiKey,
+    systemPrompt: model.systemPrompt || '',
     temperature: model.temperature,
     _maskedKey: maskApiKey(model.apiKey),
   }
@@ -226,6 +313,7 @@ function saveModel() {
     modelId: form.value.modelId.trim(),
     apiEndpoint: form.value.apiEndpoint.trim(),
     apiKey: form.value.apiKey.trim(),
+    systemPrompt: form.value.systemPrompt,
     temperature: form.value.temperature,
   }
 
@@ -250,11 +338,69 @@ function onApiKeyBlur() {
   formApiKeyFocused.value = false
 }
 
+function toggleMemory() {
+  showMemory.value = !showMemory.value
+  if (showMemory.value) showSettings.value = false
+}
+
+function toggleSettings() {
+  showSettings.value = !showSettings.value
+  if (showSettings.value) showMemory.value = false
+}
+
+function confirmClearChat() {
+  if (messages.value.length === 0) return
+  showClearConfirm.value = true
+}
+
+function doClearChat() {
+  clearCurrentConversation()
+  showClearConfirm.value = false
+}
+
+function onRangeChange() {
+  setMemoryRangeDays(memoryRangeDays.value)
+}
+
+function startEditMemory(mem) {
+  editingMemoryId.value = mem.id
+  editingMemoryText.value = mem.summary
+}
+
+function saveMemoryEdit(id) {
+  if (editingMemoryText.value.trim()) {
+    updateMemoryItem(id, { summary: editingMemoryText.value.trim() })
+  }
+  editingMemoryId.value = ''
+  editingMemoryText.value = ''
+}
+
+function cancelMemoryEdit() {
+  editingMemoryId.value = ''
+  editingMemoryText.value = ''
+}
+
+function formatTime(timestamp) {
+  const d = new Date(timestamp)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 function handleSend() {
   const text = inputText.value.trim()
   if (!text || isStreaming.value) return
   inputText.value = ''
   streamingContent.value = ''
+
+  // /memory 命令
+  if (text === '/memory') {
+    if (messages.value.length === 0) return
+    summarizeConversation(
+      () => { scrollToBottom() },
+      () => {}
+    )
+    return
+  }
 
   sendMessage(
     text,
@@ -314,7 +460,7 @@ watch(streamingContent, () => {
 
 .ai-header-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
 .ai-icon-btn {
@@ -335,9 +481,139 @@ watch(streamingContent, () => {
   color: var(--text-primary);
 }
 
+.ai-icon-btn.active {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+}
+
 .ai-icon-btn svg {
   width: 15px;
   height: 15px;
+}
+
+/* 记忆面板 */
+.ai-memory-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.ai-memory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ai-memory-header label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.ai-memory-header select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.ai-memory-header select:focus {
+  border-color: var(--accent);
+}
+
+.ai-memory-empty {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.ai-memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-memory-item {
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
+.ai-memory-view {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-memory-summary {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.ai-memory-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-memory-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ai-memory-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ai-memory-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.ai-memory-delete-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ai-memory-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-memory-edit-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.ai-memory-edit-input:focus {
+  border-color: var(--accent);
+}
+
+.ai-memory-edit-actions {
+  display: flex;
+  gap: 6px;
 }
 
 /* 设置面板 */
@@ -507,6 +783,24 @@ watch(streamingContent, () => {
   accent-color: var(--accent);
 }
 
+.ai-system-prompt-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  box-sizing: border-box;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.ai-system-prompt-input:focus {
+  border-color: var(--accent);
+}
+
 .ai-key-masked {
   font-size: 11px;
   color: var(--text-muted);
@@ -537,6 +831,39 @@ watch(streamingContent, () => {
 }
 .btn-secondary:hover {
   background: var(--border-color);
+}
+
+/* 确认弹窗 */
+.ai-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-bg);
+  z-index: 60;
+}
+
+.ai-confirm-dialog {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  width: 280px;
+  box-shadow: 0 4px 20px var(--modal-shadow);
+}
+
+.ai-confirm-dialog p {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.ai-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 /* 对话区域 */

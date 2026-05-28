@@ -10,6 +10,8 @@ const KEYS = {
   PASSWORD_PIN: 'yocim_password_pin',
   SESSION: 'yocim_session',
   AI_CONFIG: 'yocim_ai_config',
+  AI_CONVERSATIONS: 'yocim_ai_conversations',
+  AI_MEMORIES: 'yocim_ai_memories',
 }
 
 export const AI_PROVIDERS = {
@@ -558,6 +560,106 @@ export function getActiveAiModel() {
   const config = getAiConfig()
   return config.models.find(m => m.id === config.activeModelId && m.enabled) || null
 }
+
+// ===== AI 对话持久化 =====
+
+export function getAiConversations() {
+  try {
+    const data = localStorage.getItem(KEYS.AI_CONVERSATIONS)
+    return data ? JSON.parse(data) : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+export function getAiConversation(modelId) {
+  if (!modelId) return []
+  const all = getAiConversations()
+  return all[modelId]?.messages || []
+}
+
+export function saveAiConversation(modelId, messages) {
+  if (!modelId) return
+  const all = getAiConversations()
+  all[modelId] = { messages: [...messages], updatedAt: Date.now() }
+  localStorage.setItem(KEYS.AI_CONVERSATIONS, JSON.stringify(all))
+}
+
+export function clearAiConversation(modelId) {
+  if (!modelId) return
+  const all = getAiConversations()
+  delete all[modelId]
+  localStorage.setItem(KEYS.AI_CONVERSATIONS, JSON.stringify(all))
+}
+
+// ===== AI 记忆 =====
+
+const defaultMemories = { entries: [], range: 7 }
+
+export function getAiMemories() {
+  try {
+    const data = localStorage.getItem(KEYS.AI_MEMORIES)
+    if (!data) return JSON.parse(JSON.stringify(defaultMemories))
+    return { ...defaultMemories, ...JSON.parse(data) }
+  } catch (_) {
+    return JSON.parse(JSON.stringify(defaultMemories))
+  }
+}
+
+export function saveAiMemories(data) {
+  localStorage.setItem(KEYS.AI_MEMORIES, JSON.stringify(data))
+}
+
+export function addAiMemory(summary, keywords) {
+  const data = getAiMemories()
+  data.entries.push({
+    id: generateId(),
+    summary: summary || '',
+    keywords: keywords || '',
+    createdAt: Date.now(),
+  })
+  saveAiMemories(data)
+  return data.entries
+}
+
+export function updateAiMemory(id, updates) {
+  const data = getAiMemories()
+  const idx = data.entries.findIndex(m => m.id === id)
+  if (idx !== -1) {
+    data.entries[idx] = { ...data.entries[idx], ...updates }
+    saveAiMemories(data)
+  }
+  return data.entries
+}
+
+export function deleteAiMemory(id) {
+  const data = getAiMemories()
+  data.entries = data.entries.filter(m => m.id !== id)
+  saveAiMemories(data)
+  return data.entries
+}
+
+export function getMemoryRange() {
+  return getAiMemories().range
+}
+
+export function setMemoryRange(days) {
+  const data = getAiMemories()
+  data.range = days
+  saveAiMemories(data)
+}
+
+export function getActiveMemories() {
+  const data = getAiMemories()
+  const range = data.range
+  if (range === 0) return data.entries
+  const cutoff = Date.now() - range * 24 * 60 * 60 * 1000
+  return data.entries.filter(m => m.createdAt >= cutoff)
+}
+
+// ===== AI 默认系统提示词 =====
+
+export const AI_DEFAULT_SYSTEM_PROMPT = '你是 YOCIM 浏览器内置的 AI 助手，名字叫 Nex。你是一个友好、耐心、知识渊博的助手。你的目标是：\n1. 用简洁清晰的语言回答用户问题\n2. 如果问题复杂，适当展开解释，但不要冗长\n3. 使用中文回复（除非用户使用英文提问）\n4. 保持专业且温暖的语气\n5. 如果用户询问关于代码、编程、技术的问题，提供准确、实用的建议\n6. 不编造信息，不确定时坦诚说明'
 
 // ===== 重置所有设置 =====
 
