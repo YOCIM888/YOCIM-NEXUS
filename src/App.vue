@@ -64,6 +64,12 @@
       :showUrlSuggestions="showUrlSuggestions"
       :urlSuggestions="urlSuggestions"
       :hasVideo="hasVideo"
+      :showToolbarBookmarks="reactiveSettings.toolbarBookmarks !== false"
+      :showToolbarReadingList="reactiveSettings.toolbarReadingList !== false"
+      :showToolbarHistory="reactiveSettings.toolbarHistory !== false"
+      :showToolbarDownloads="reactiveSettings.toolbarDownloads !== false"
+      :showToolbarNotes="reactiveSettings.toolbarNotes !== false"
+      :showToolbarExtensions="reactiveSettings.toolbarExtensions !== false"
       @back="goBack"
       @forward="goForward"
       @reload="reload"
@@ -74,9 +80,10 @@
       @selectSuggestion="selectUrlSuggestion"
       @toggleBookmark="toggleBookmark"
       @addToReadingList="addToReadingListCurrent"
-      @togglePanel="togglePanel"
-      @toggleReadingList="showReadingList = !showReadingList"
-      @toggleNotes="showNotes = !showNotes"
+      @togglePanel="togglePanelWithCleanup"
+      @toggleReadingList="toggleReadingListWithCleanup"
+      @toggleNotes="toggleNotesWithCleanup"
+      @toggleExtensions="toggleExtensionsWithCleanup"
       @enterPip="enterPip"
       @openSettings="openSettings"
     />
@@ -88,7 +95,7 @@
       @close="showFindBar = false"
     />
 
-    <div class="content-area" :class="{ 'split-mode': activeTab?.splitWith }">
+    <div class="content-area" :class="{ 'split-mode': activeTab?.splitWith }" @click="closeAllPanels">
       <div
         v-for="tab in tabs"
         :key="tab.id"
@@ -112,6 +119,7 @@
           :ref="el => setWebviewRef(tab.id, el)"
           class="webview"
           :partition="tab.partition"
+          :preload="webviewPreloadPath"
           :style="tabContextMenu.show ? { pointerEvents: 'none' } : {}"
           allowpopups
         ></webview>
@@ -170,12 +178,37 @@
         :panelStyle="notesPanelStyle"
         @close="showNotes = false"
       />
+      <ExtensionsPanel
+        v-if="activePanel === 'extensions'"
+        :panelStyle="extensionsPanelStyle"
+        @close="activePanel = ''"
+      />
+    </div>
+
+    <!-- 权限请求弹窗 -->
+    <div v-if="permDialog.show" class="modal-overlay">
+      <div class="modal" style="max-width: 380px;">
+        <h3>{{ t('permissionRequest') || '权限请求' }}</h3>
+        <p style="margin: 12px 0;">{{ t('permissionRequestMsg') || '网站请求使用：' }}<strong>{{ permDialog.label }}</strong></p>
+        <label style="display: flex; align-items: center; gap: 8px; margin: 12px 0; cursor: pointer;">
+          <input type="checkbox" v-model="permDialog.remember" />
+          <span>{{ t('dontAskAgain') || '不再询问' }}</span>
+        </label>
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button class="btn btn-secondary" @click="respondPermission(false)">
+            {{ t('deny') || '拒绝' }}
+          </button>
+          <button class="btn" @click="respondPermission(true)">
+            {{ t('allow') || '允许' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, provide } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick, provide } from 'vue'
 import { isBookmarked, addBookmark, removeBookmarkByUrl, getSettings, updateSettings, exportAllData, getBookmarks, getHistory, addToReadingList, addDownload, updateDownload, saveSession, loadSession } from './utils/storage'
 import { useI18n } from './utils/i18n'
 import { useSettings } from './composables/useSettings'
@@ -195,6 +228,7 @@ import DownloadPanel from './components/DownloadPanel.vue'
 import NotesPanel from './components/NotesPanel.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import FindBar from './components/FindBar.vue'
+import ExtensionsPanel from './components/ExtensionsPanel.vue'
 import ReadingListPanel from './components/ReadingListPanel.vue'
 
 const { t, setLocale, getLocale } = useI18n()
@@ -203,7 +237,7 @@ const {
   reactiveSettings, tabsPosition, sidebarCollapsed, toggleSidebar,
   systemDark, isDark, applyCustomTheme,
   bookmarkPanelStyle, readingListPanelStyle, historyPanelStyle,
-  downloadPanelStyle, notesPanelStyle,
+  downloadPanelStyle, notesPanelStyle, extensionsPanelStyle,
   bookmarkVersion, isCurrentBookmarked
 } = useSettings()
 
@@ -226,6 +260,23 @@ const showReadingList = ref(false)
 const showLangDialog = ref(false)
 const highlightLangSetting = ref(false)
 const navBarRef = ref(null)
+
+// 权限请求弹窗
+const permDialog = reactive({
+  show: false,
+  id: 0,
+  label: '',
+  remember: false,
+})
+
+async function respondPermission(allowed) {
+  await window.electronAPI?.respondPermission({
+    id: permDialog.id,
+    allowed,
+    remember: permDialog.remember,
+  })
+  permDialog.show = false
+}
 
 const urlInputRef = computed(() => navBarRef.value?.urlInputRef)
 
@@ -251,6 +302,7 @@ const {
   webviewRefs, webviewReady, setupListenersMap,
   canGoBack, canGoForward, hasVideo, findBarRef, showFindBar,
   setWebviewRef, setupWebviewListeners, updateNavState,
+  webviewPreloadPath,
   goBack, goForward, reload, navigate, loadInTab,
   openUrlInNewTab, openUrlInNewWindow, openUrlInSplitView,
   detectVideo, enterPip, printCurrentPage,
@@ -313,6 +365,36 @@ function addToReadingListCurrent() {
 function handlePanelNavigate(url) {
   activePanel.value = ''
   loadInTab(url)
+}
+
+function closeAllPanels() {
+  activePanel.value = ''
+  showReadingList.value = false
+  showNotes.value = false
+}
+
+function togglePanelWithCleanup(name) {
+  showReadingList.value = false
+  showNotes.value = false
+  togglePanel(name)
+}
+
+function toggleReadingListWithCleanup() {
+  activePanel.value = ''
+  showNotes.value = false
+  showReadingList.value = !showReadingList.value
+}
+
+function toggleNotesWithCleanup() {
+  activePanel.value = ''
+  showReadingList.value = false
+  showNotes.value = !showNotes.value
+}
+
+function toggleExtensionsWithCleanup() {
+  showReadingList.value = false
+  showNotes.value = false
+  activePanel.value = activePanel.value === 'extensions' ? '' : 'extensions'
 }
 
 function confirmLangDialog() {
@@ -428,10 +510,13 @@ function startAutoBackup() {
     const intervalMs = (settings.autoBackupInterval || 24) * 60 * 60 * 1000
     if (now - settings.lastBackupTime < intervalMs) return
     const data = exportAllData()
+    const parsed = JSON.parse(data)
+    const external = await window.electronAPI?.getExternalSettings()
+    if (external) parsed._external = external
     const fileName = `yocim-nexus-backup-${new Date().toISOString().slice(0, 10)}.json`
     const filePath = settings.autoBackupPath + '\\' + fileName
     try {
-      await window.electronAPI?.writeFile(filePath, data)
+      await window.electronAPI?.writeFile(filePath, JSON.stringify(parsed, null, 2))
       updateSettings({ lastBackupTime: now })
     } catch (e) {
       console.error('Auto backup failed:', e)
@@ -531,6 +616,15 @@ onMounted(async () => {
   })
   window.electronAPI?.onOpenNewTab((url) => {
     openUrlInNewTab(url)
+  })
+  window.electronAPI?.onOpenLocalFile((url) => {
+    openUrlInNewTab(url)
+  })
+  window.electronAPI?.onPermissionRequest(({ id, label }) => {
+    permDialog.show = true
+    permDialog.id = id
+    permDialog.label = label
+    permDialog.remember = false
   })
   window.electronAPI?.onDownloadStart((data) => {
     downloads.value = addDownload(data)
@@ -750,5 +844,42 @@ onUnmounted(() => {
 .tabs-left :deep(.find-bar) {
   grid-column: 2;
   grid-row: 3;
+}
+
+/* ===== 权限请求弹窗 ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 20px 24px;
+  width: 320px;
+  box-shadow: 0 8px 30px var(--modal-shadow);
+}
+
+.modal h3 {
+  margin-bottom: 12px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.modal p {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

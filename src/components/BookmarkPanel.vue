@@ -1,5 +1,5 @@
 <template>
-  <div class="panel bookmark-panel" :style="panelStyle">
+  <div class="panel bookmark-panel" :style="panelStyle" @click.stop>
     <div class="panel-header">
       <h3>{{ t('bookmarks') }}</h3>
       <div class="header-actions">

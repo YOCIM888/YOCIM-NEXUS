@@ -63,6 +63,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 新标签页打开
   onOpenNewTab: (callback) => ipcRenderer.on('open-new-tab', (_e, url) => callback(url)),
 
+  // 打开本地文件
+  onOpenLocalFile: (callback) => ipcRenderer.on('open-local-file', (_e, url) => callback(url)),
+
   // 下载路径
   setDownloadPath: (dir) => ipcRenderer.invoke('set-download-path', dir),
   onDownloadPathChanged: (callback) => ipcRenderer.on('download-path-changed', (_e, dir) => callback(dir)),
@@ -74,6 +77,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCookies: (domain) => ipcRenderer.invoke('get-cookies', domain),
   deleteCookie: (name, url) => ipcRenderer.invoke('delete-cookie', { name, url }),
 
+  // 数据导出/导入（外部配置）
+  getExternalSettings: () => ipcRenderer.invoke('get-external-settings'),
+  setExternalSettings: (data) => ipcRenderer.invoke('set-external-settings', data),
+
   // 站点权限
   getSitePermissions: () => ipcRenderer.invoke('get-site-permissions'),
+  updatePermission: (type, status) => ipcRenderer.invoke('update-permission', { type, status }),
+  onPermissionRequest: (callback) => ipcRenderer.on('permission-request', (_e, data) => callback(data)),
+  respondPermission: (data) => ipcRenderer.invoke('permission-response', data),
+
+  // 协议拦截
+  getProtocolSettings: () => ipcRenderer.invoke('get-protocol-settings'),
+  updateProtocolSettings: (data) => ipcRenderer.invoke('update-protocol-settings', data),
 })

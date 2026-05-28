@@ -65,6 +65,72 @@
         </div>
       </div>
 
+      <!-- ===== 工具设置 ===== -->
+      <div v-if="activeSection === 'tools'" class="section">
+        <h2>{{ t('toolSettings') }}</h2>
+        <p class="section-desc">{{ t('toolSettingsDesc') }}</p>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('bookmarks') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarBookmarks" @change="changeToolbarBookmarks" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('readingList') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarReadingList" @change="changeToolbarReadingList" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('history') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarHistory" @change="changeToolbarHistory" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('downloads') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarDownloads" @change="changeToolbarDownloads" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('notes') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarNotes" @change="changeToolbarNotes" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('extensions') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarExtensions" @change="changeToolbarExtensions" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
       <!-- ===== 外观设置 ===== -->
       <div v-if="activeSection === 'appearance'" class="section">
         <h2>{{ t('appearanceSection') }}</h2>
@@ -99,6 +165,14 @@
         </div>
 
         <div class="setting-row">
+          <span>{{ t('tabsPosition') }}</span>
+          <select v-model="tabsPosition" @change="changeTabsPosition" class="select-input">
+            <option value="top">{{ t('tabsPositionTop') }}</option>
+            <option value="left">{{ t('tabsPositionLeft') }}</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
           <span>{{ t('background') }}</span>
           <div class="setting-actions">
             <button class="btn" @click="selectBackgroundImage">{{ t('selectImage') }}</button>
@@ -129,14 +203,6 @@
             <input type="checkbox" v-model="hideIcons" @change="changeHideIcons" />
             <span class="toggle-slider"></span>
           </label>
-        </div>
-
-        <div class="setting-row">
-          <span>{{ t('tabsPosition') }}</span>
-          <select v-model="tabsPosition" @change="changeTabsPosition" class="select-input">
-            <option value="top">{{ t('tabsPositionTop') }}</option>
-            <option value="left">{{ t('tabsPositionLeft') }}</option>
-          </select>
         </div>
 
         <!-- 面板样式 -->
@@ -204,16 +270,24 @@
           <span>{{ t('panelBgColor') }}</span>
           <input type="color" :value="notesPanelBg || '#3a3a3a'" @input="e => { notesPanelBg = e.target.value; changeNotesPanelBg() }" />
         </div>
+
+        <h3 class="sub-heading">{{ t('extensionsPanelStyle') }}</h3>
+        <div class="setting-row">
+          <span>{{ t('panelWidth') }}</span>
+          <div class="setting-actions">
+            <input type="range" min="260" max="500" step="10" v-model.number="extensionsPanelWidth" @change="changeExtensionsPanelWidth" class="zoom-slider" />
+            <span class="zoom-value">{{ extensionsPanelWidth }}px</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span>{{ t('panelBgColor') }}</span>
+          <input type="color" :value="extensionsPanelBg || '#3a3a3a'" @input="e => { extensionsPanelBg = e.target.value; changeExtensionsPanelBg() }" />
+        </div>
       </div>
 
       <!-- ===== 隐私安全 ===== -->
       <div v-if="activeSection === 'privacy'" class="section">
         <h2>{{ t('privacySecurity') }}</h2>
-
-        <div class="setting-row">
-          <span>{{ t('passwordManager') }}</span>
-          <button class="btn" @click="openPasswordManager">{{ t('openPasswordManager') }}</button>
-        </div>
 
         <div class="setting-row">
           <div class="setting-info">
@@ -227,6 +301,11 @@
         </div>
 
         <div class="setting-row">
+          <span>{{ t('passwordManager') }}</span>
+          <button class="btn" @click="openPasswordManager">{{ t('openPasswordManager') }}</button>
+        </div>
+
+        <div class="setting-row">
           <span>{{ t('manageCookies') }}</span>
           <button class="btn" @click="openCookieManager">{{ t('manageCookies') }}</button>
         </div>
@@ -234,6 +313,11 @@
         <div class="setting-row">
           <span>{{ t('sitePermissions') }}</span>
           <button class="btn" @click="openPermissionsManager">{{ t('permissions') }}</button>
+        </div>
+
+        <div class="setting-row">
+          <span>{{ t('protocolBlock') }}</span>
+          <button class="btn" @click="openProtocolDialog">{{ t('configure') }}</button>
         </div>
 
         <div class="setting-row danger">
@@ -308,13 +392,24 @@
         </div>
 
         <div class="setting-row">
-          <span>{{ t('adBlock') }}</span>
+          <div class="setting-info">
+            <span>{{ t('adBlock') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="adBlockEnabled" @change="toggleAdBlock" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('sessionRestore') }}</span>
+          </div>
           <div class="setting-actions">
             <label class="toggle">
-              <input type="checkbox" v-model="adBlockEnabled" @change="toggleAdBlock" />
+              <input type="checkbox" v-model="sessionRestore" @change="changeSessionRestore" />
               <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">{{ t('enableAdBlock') }}</span>
           </div>
         </div>
 
@@ -328,19 +423,6 @@
             <option :value="30">30 {{ t('minutes') }}</option>
             <option :value="0">{{ t('never') }}</option>
           </select>
-        </div>
-
-        <div class="setting-row">
-          <div class="setting-info">
-            <span>{{ t('sessionRestore') }}</span>
-            <span class="setting-desc">{{ t('sessionRestoreDesc') }}</span>
-          </div>
-          <div class="setting-actions">
-            <label class="toggle">
-              <input type="checkbox" v-model="sessionRestore" @change="changeSessionRestore" />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
         </div>
 
         <div class="setting-row">
@@ -474,7 +556,7 @@
           <div v-if="permissions.length === 0" class="empty-hint">{{ t('noPermissions') }}</div>
           <div v-for="(p, i) in permissions" :key="i" class="setting-row">
             <span>{{ permissionLabel(p.type) }}</span>
-            <select class="select-input" v-model="p.status">
+            <select class="select-input" v-model="p.status" @change="changePermission(p)">
               <option value="allow">{{ t('permissionAllowed') }}</option>
               <option value="block">{{ t('permissionBlocked') }}</option>
               <option value="ask">{{ t('permissionAsk') }}</option>
@@ -498,6 +580,64 @@
           </div>
           <div class="modal-actions" style="margin-top: 12px;">
             <button class="btn btn-secondary" @click="showShortcuts = false">{{ t('cancel') }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ===== 协议拦截配置弹窗 ===== -->
+    <Teleport to="body">
+      <div v-if="showProtocolDialog" class="modal-overlay" @click.self="showProtocolDialog = false">
+        <div class="modal protocol-modal">
+          <h3>{{ t('protocolBlock') }}</h3>
+
+          <div class="protocol-mode-section">
+            <p class="protocol-section-title">{{ t('protocolBlockMode') }}</p>
+            <label class="protocol-radio"><input type="radio" v-model="protocolBlockMode" value="off" /> {{ t('protocolOff') }}</label>
+            <p class="protocol-radio-desc">{{ t('protocolOffDesc') }}</p>
+            <label class="protocol-radio"><input type="radio" v-model="protocolBlockMode" value="whitelist" /> {{ t('protocolWhitelistMode') }}</label>
+            <p class="protocol-radio-desc">{{ t('protocolWhitelistModeDesc') }}</p>
+            <label class="protocol-radio"><input type="radio" v-model="protocolBlockMode" value="blacklist" /> {{ t('protocolBlacklistMode') }}</label>
+            <p class="protocol-radio-desc">{{ t('protocolBlacklistModeDesc') }}</p>
+            <label class="protocol-radio"><input type="radio" v-model="protocolBlockMode" value="both" /> {{ t('protocolBothMode') }}</label>
+            <p class="protocol-radio-desc">{{ t('protocolBothModeDesc') }}</p>
+          </div>
+
+          <div v-if="protocolBlockMode === 'whitelist' || protocolBlockMode === 'both'" class="protocol-list-section">
+            <p class="protocol-section-title">{{ t('protocolWhitelistLabel') }}</p>
+            <div class="protocol-tags">
+              <span v-for="(p, i) in protocolWhitelist" :key="'w'+i" class="protocol-tag">
+                {{ p }}
+                <button class="tag-remove" @click="removeProtocol('whitelist', i)">&times;</button>
+              </span>
+            </div>
+            <div class="protocol-add-row">
+              <input type="text" v-model="newWhitelistProtocol" :placeholder="t('protocolPlaceholder')" class="protocol-input" @keyup.enter="addProtocol('whitelist')" />
+              <button class="btn btn-sm" @click="addProtocol('whitelist')">{{ t('addProtocol') }}</button>
+            </div>
+            <p v-if="protocolError === 'whitelist-exists'" class="protocol-error">{{ t('protocolExists') }}</p>
+            <p v-if="protocolError === 'whitelist-invalid'" class="protocol-error">{{ t('protocolInvalid') }}</p>
+          </div>
+
+          <div v-if="protocolBlockMode === 'blacklist' || protocolBlockMode === 'both'" class="protocol-list-section">
+            <p class="protocol-section-title">{{ t('protocolBlacklistLabel') }}</p>
+            <div class="protocol-tags">
+              <span v-for="(p, i) in protocolBlacklist" :key="'b'+i" class="protocol-tag protocol-tag-black">
+                {{ p }}
+                <button class="tag-remove" @click="removeProtocol('blacklist', i)">&times;</button>
+              </span>
+            </div>
+            <div class="protocol-add-row">
+              <input type="text" v-model="newBlacklistProtocol" :placeholder="t('protocolPlaceholder')" class="protocol-input" @keyup.enter="addProtocol('blacklist')" />
+              <button class="btn btn-sm" @click="addProtocol('blacklist')">{{ t('addProtocol') }}</button>
+            </div>
+            <p v-if="protocolError === 'blacklist-exists'" class="protocol-error">{{ t('protocolExists') }}</p>
+            <p v-if="protocolError === 'blacklist-invalid'" class="protocol-error">{{ t('protocolInvalid') }}</p>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-cancel" @click="showProtocolDialog = false">{{ t('cancel') }}</button>
+            <button class="btn-confirm" @click="saveProtocolSettings">{{ t('confirm') }}</button>
           </div>
         </div>
       </div>
@@ -534,6 +674,13 @@ const startupUrl = ref(settings.value.startupUrl || '')
 const newTabMode = ref(settings.value.newTabPage || 'default')
 const newTabUrl = ref(settings.value.newTabUrl || '')
 
+// 工具设置
+const toolbarBookmarks = ref(settings.value.toolbarBookmarks !== false)
+const toolbarReadingList = ref(settings.value.toolbarReadingList !== false)
+const toolbarHistory = ref(settings.value.toolbarHistory !== false)
+const toolbarDownloads = ref(settings.value.toolbarDownloads !== false)
+const toolbarNotes = ref(settings.value.toolbarNotes !== false)
+
 // 外观
 const hideLogo = ref(settings.value.hideLogo || false)
 const hideIcons = ref(settings.value.hideIcons || false)
@@ -543,16 +690,18 @@ const zoomPercent = ref(Math.round((settings.value.pageZoom || 1.0) * 100))
 const customColors = ref(settings.value.customTheme || { ...defaultCustomColors() })
 
 // 面板样式
-const bookmarkPanelWidth = ref(settings.value.bookmarkPanelWidth || 360)
+const bookmarkPanelWidth = ref(settings.value.bookmarkPanelWidth || 260)
 const bookmarkPanelBg = ref(settings.value.bookmarkPanelBg || '')
-const readingListPanelWidth = ref(settings.value.readingListPanelWidth || 360)
+const readingListPanelWidth = ref(settings.value.readingListPanelWidth || 260)
 const readingListPanelBg = ref(settings.value.readingListPanelBg || '')
-const historyPanelWidth = ref(settings.value.historyPanelWidth || 360)
+const historyPanelWidth = ref(settings.value.historyPanelWidth || 260)
 const historyPanelBg = ref(settings.value.historyPanelBg || '')
-const downloadPanelWidth = ref(settings.value.downloadPanelWidth || 380)
+const downloadPanelWidth = ref(settings.value.downloadPanelWidth || 260)
 const downloadPanelBg = ref(settings.value.downloadPanelBg || '')
-const notesPanelWidth = ref(settings.value.notesPanelWidth || 360)
+const notesPanelWidth = ref(settings.value.notesPanelWidth || 260)
 const notesPanelBg = ref(settings.value.notesPanelBg || '')
+const extensionsPanelWidth = ref(settings.value.extensionsPanelWidth || 260)
+const extensionsPanelBg = ref(settings.value.extensionsPanelBg || '')
 
 function defaultCustomColors() {
   return {
@@ -594,6 +743,71 @@ const cookies = ref([])
 const showPermissionsManager = ref(false)
 const permissions = ref([])
 
+// 协议拦截
+const showProtocolDialog = ref(false)
+const protocolBlockMode = ref(settings.value.protocolBlockMode || 'blacklist')
+const protocolWhitelist = ref([...(settings.value.protocolWhitelist || ['http:', 'https:', 'file:', 'blob:', 'data:'])])
+const protocolBlacklist = ref([...(settings.value.protocolBlacklist || [])])
+const newWhitelistProtocol = ref('')
+const newBlacklistProtocol = ref('')
+const protocolError = ref('')
+
+function openProtocolDialog() {
+  const s = getSettings()
+  protocolBlockMode.value = s.protocolBlockMode || 'blacklist'
+  protocolWhitelist.value = [...(s.protocolWhitelist || ['http:', 'https:', 'file:', 'blob:', 'data:'])]
+  protocolBlacklist.value = [...(s.protocolBlacklist || [])]
+  newWhitelistProtocol.value = ''
+  newBlacklistProtocol.value = ''
+  protocolError.value = ''
+  showProtocolDialog.value = true
+}
+
+function removeProtocol(list, index) {
+  if (list === 'whitelist') {
+    protocolWhitelist.value.splice(index, 1)
+  } else {
+    protocolBlacklist.value.splice(index, 1)
+  }
+}
+
+function addProtocol(list) {
+  protocolError.value = ''
+  const input = list === 'whitelist' ? newWhitelistProtocol.value.trim() : newBlacklistProtocol.value.trim()
+  if (!input.endsWith(':')) {
+    protocolError.value = list + '-invalid'
+    return
+  }
+  const target = list === 'whitelist' ? protocolWhitelist : protocolBlacklist
+  if (target.value.includes(input)) {
+    protocolError.value = list + '-exists'
+    return
+  }
+  target.value.push(input)
+  if (list === 'whitelist') {
+    newWhitelistProtocol.value = ''
+  } else {
+    newBlacklistProtocol.value = ''
+  }
+}
+
+async function saveProtocolSettings() {
+  updateSettings({
+    protocolBlockMode: protocolBlockMode.value,
+    protocolWhitelist: protocolWhitelist.value,
+    protocolBlacklist: protocolBlacklist.value,
+  })
+  settings.value = getSettings()
+  if (window.electronAPI?.updateProtocolSettings) {
+    await window.electronAPI.updateProtocolSettings({
+      mode: protocolBlockMode.value,
+      whitelist: protocolWhitelist.value,
+      blacklist: protocolBlacklist.value,
+    })
+  }
+  showProtocolDialog.value = false
+}
+
 // 快捷键
 const showShortcuts = ref(false)
 const shortcutsList = [
@@ -627,6 +841,7 @@ const shortcutsList = [
 
 const menuItems = ref([
   { key: 'basic', label: '' },
+  { key: 'tools', label: '' },
   { key: 'appearance', label: '' },
   { key: 'privacy', label: '' },
   { key: 'storage', label: '' },
@@ -637,16 +852,34 @@ const menuItems = ref([
 
 function updateMenuLabels() {
   menuItems.value[0].label = t('basicSettings')
-  menuItems.value[1].label = t('appearanceSection')
-  menuItems.value[2].label = t('privacySecurity')
-  menuItems.value[3].label = t('storageSection')
-  menuItems.value[4].label = t('accessibilitySection')
-  menuItems.value[5].label = t('resetSettings')
-  menuItems.value[6].label = t('about')
+  menuItems.value[1].label = t('toolSettings')
+  menuItems.value[2].label = t('appearanceSection')
+  menuItems.value[3].label = t('privacySecurity')
+  menuItems.value[4].label = t('storageSection')
+  menuItems.value[5].label = t('accessibilitySection')
+  menuItems.value[6].label = t('resetSettings')
+  menuItems.value[7].label = t('about')
 }
 
 function permissionLabel(type) {
-  const map = { geolocation: t('permissionLocation'), media: t('permissionCamera'), notifications: t('permissionNotifications') }
+  const map = {
+    camera: t('permissionCamera'),
+    microphone: t('permissionMicrophone'),
+    geolocation: t('permissionLocation'),
+    notifications: t('permissionNotifications'),
+    midiSysex: t('permissionMidi'),
+    pointerLock: t('permissionPointerLock'),
+    fullscreen: t('permissionFullscreen'),
+    openExternal: t('permissionOpenExternal'),
+    clipboardRead: t('permissionClipboardRead'),
+    idleDetection: t('permissionIdleDetection'),
+    serial: t('permissionSerial'),
+    sensors: t('permissionSensors'),
+    displayCapture: t('permissionDisplayCapture'),
+    hid: t('permissionHid'),
+    usb: t('permissionUsb'),
+    clipboardSanitizedWrite: t('permissionClipboardWrite'),
+  }
   return map[type] || type
 }
 
@@ -679,6 +912,28 @@ function changeNewTabPage() {
 
 function changeNewTabUrl() {
   settings.value = updateSettings({ newTabUrl: newTabUrl.value })
+}
+
+// ===== 工具设置 =====
+function changeToolbarBookmarks() {
+  settings.value = updateSettings({ toolbarBookmarks: toolbarBookmarks.value })
+  refreshSettings()
+}
+function changeToolbarReadingList() {
+  settings.value = updateSettings({ toolbarReadingList: toolbarReadingList.value })
+  refreshSettings()
+}
+function changeToolbarHistory() {
+  settings.value = updateSettings({ toolbarHistory: toolbarHistory.value })
+  refreshSettings()
+}
+function changeToolbarDownloads() {
+  settings.value = updateSettings({ toolbarDownloads: toolbarDownloads.value })
+  refreshSettings()
+}
+function changeToolbarNotes() {
+  settings.value = updateSettings({ toolbarNotes: toolbarNotes.value })
+  refreshSettings()
 }
 
 // ===== 外观 =====
@@ -754,6 +1009,14 @@ function changeNotesPanelBg() {
   settings.value = updateSettings({ notesPanelBg: notesPanelBg.value })
   refreshSettings()
 }
+function changeExtensionsPanelWidth() {
+  settings.value = updateSettings({ extensionsPanelWidth: extensionsPanelWidth.value })
+  refreshSettings()
+}
+function changeExtensionsPanelBg() {
+  settings.value = updateSettings({ extensionsPanelBg: extensionsPanelBg.value })
+  refreshSettings()
+}
 
 function changeIncognito() {
   settings.value = updateSettings({ incognitoBrowsing: incognitoBrowsing.value })
@@ -802,8 +1065,12 @@ async function handleExport() {
   const dir = await window.electronAPI?.selectDirectory()
   if (dir) {
     const data = exportAllData()
+    const parsed = JSON.parse(data)
+    // 合并外部配置（权限设置、协议设置等）
+    const external = await window.electronAPI?.getExternalSettings()
+    if (external) parsed._external = external
     const filePath = dir + '\\yocim-nexus-backup.json'
-    await window.electronAPI?.writeFile(filePath, data)
+    await window.electronAPI?.writeFile(filePath, JSON.stringify(parsed, null, 2))
   }
 }
 
@@ -813,7 +1080,13 @@ async function handleImport() {
   const content = await window.electronAPI?.readFile(filePath)
   if (!content) return
   try {
-    importAllData(content)
+    const parsed = JSON.parse(content)
+    // 提取并恢复外部配置
+    if (parsed._external) {
+      await window.electronAPI?.setExternalSettings(parsed._external)
+      delete parsed._external
+    }
+    importAllData(JSON.stringify(parsed))
   } catch (e) {
     alert(t('importFailed') || '导入失败：文件格式不正确')
     return
@@ -937,7 +1210,8 @@ async function openCookieManager() {
 }
 
 async function deleteCookieItem(cookie) {
-  const url = `https://${cookie.domain}${cookie.path}`
+  const domain = cookie.domain.replace(/^\./, '')
+  const url = `https://${domain}${cookie.path}`
   await window.electronAPI?.deleteCookie(cookie.name, url)
   cookies.value = cookies.value.filter(c => c !== cookie)
 }
@@ -946,6 +1220,10 @@ async function deleteCookieItem(cookie) {
 async function openPermissionsManager() {
   permissions.value = await window.electronAPI?.getSitePermissions() || []
   showPermissionsManager.value = true
+}
+
+async function changePermission(p) {
+  await window.electronAPI?.updatePermission(p.type, p.status)
 }
 
 // ===== 清除数据 =====
@@ -1578,5 +1856,115 @@ function goToRelease() {
   margin-top: 8px;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.protocol-modal {
+  width: 520px;
+  max-height: 80vh;
+}
+
+.protocol-mode-section {
+  margin-bottom: 16px;
+}
+
+.protocol-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.protocol-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+
+.protocol-radio input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+.protocol-radio-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 8px 22px;
+}
+
+.protocol-list-section {
+  margin-bottom: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.protocol-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.protocol-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(74, 144, 217, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(74, 144, 217, 0.3);
+}
+
+.protocol-tag-black {
+  background: rgba(220, 53, 69, 0.12);
+  color: #dc3545;
+  border-color: rgba(220, 53, 69, 0.3);
+}
+
+.tag-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.7;
+  padding: 0 2px;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+}
+
+.protocol-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.protocol-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.protocol-input:focus {
+  border-color: var(--accent);
+}
+
+.protocol-error {
+  font-size: 12px;
+  color: #dc3545;
+  margin: 4px 0 0;
 }
 </style>

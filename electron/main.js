@@ -9,21 +9,47 @@ const __dirname = path.dirname(__filename)
 
 process.env.APP_ROOT = path.join(__dirname, '..')
 
-// ===== 启动速度优化 =====
+// ===== 安全和性能配置 =====
 app.commandLine.appendSwitch('lang', 'zh-CN')
-app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar,ParallelDownloading')
+app.commandLine.appendSwitch('enable-sandbox')
+app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar,ParallelDownloading,StrictSiteIsolation')
 app.commandLine.appendSwitch('enable-gpu-rasterization')
 app.commandLine.appendSwitch('enable-zero-copy')
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
-app.commandLine.appendSwitch('disable-background-timer-throttling')
-app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512')
+app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,PasswordManagerOnboarding,IdleDetection')
 app.setPath('crashDumps', path.join(app.getPath('temp'), 'yocim-crashes'))
 
 let win
 const activeDownloads = new Map()
 const installedExtensions = new Map()
 let downloadPath = ''
+let pendingOpenFile = null
+
+const gotTheLock = app.requestSingleInstanceLock()
+
+function findFileArg(argv) {
+  const exts = ['.html', '.htm', '.xhtml', '.svg', '.xml', '.txt', '.pdf', '.mht', '.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
+  for (const a of argv) {
+    if (!a || a.startsWith('-') || a.startsWith('--')) continue
+    const resolved = path.resolve(a)
+    if (fs.existsSync(resolved) && exts.some(ext => a.toLowerCase().endsWith(ext))) {
+      return resolved
+    }
+  }
+  return null
+}
+
+app.on('second-instance', (_event, argv) => {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    const filePath = findFileArg(argv)
+    if (filePath) {
+      const fileUrl = 'file:///' + filePath.replace(/\\/g, '/')
+      win.webContents.send('open-local-file', fileUrl)
+    }
+  }
+})
 
 const EXTENSIONS_FILE = path.join(app.getPath('userData'), 'extensions.json')
 
@@ -43,9 +69,22 @@ function loadExtensions() {
 async function loadExtension(extPath) {
   try {
     const ext = await session.defaultSession.loadExtension(extPath, { allowFileAccess: true })
-    installedExtensions.set(ext.id, { id: ext.id, name: ext.name, version: ext.version, path: extPath, enabled: true })
+    let icon = null
+    try {
+      const manifestPath = path.join(extPath, 'manifest.json')
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+      if (manifest.icons) {
+        const sizes = Object.keys(manifest.icons).map(Number).sort((a, b) => a - b)
+        const iconFile = String(manifest.icons[sizes[0]])
+        const iconPath = path.join(extPath, iconFile)
+        if (fs.existsSync(iconPath)) {
+          icon = 'data:image/png;base64,' + fs.readFileSync(iconPath).toString('base64')
+        }
+      }
+    } catch (_) {}
+    installedExtensions.set(ext.id, { id: ext.id, name: ext.name, version: ext.version, path: extPath, enabled: true, icon })
     saveExtensionsList()
-    return { id: ext.id, name: ext.name, version: ext.version }
+    return { id: ext.id, name: ext.name, version: ext.version, icon }
   } catch (e) {
     return null
   }
@@ -54,7 +93,7 @@ async function loadExtension(extPath) {
 function saveExtensionsList() {
   const list = []
   for (const [, ext] of installedExtensions) {
-    list.push({ id: ext.id, name: ext.name, version: ext.version, path: ext.path, enabled: ext.enabled })
+    list.push({ id: ext.id, name: ext.name, version: ext.version, path: ext.path, enabled: ext.enabled, icon: ext.icon })
   }
   fs.writeFileSync(EXTENSIONS_FILE, JSON.stringify(list, null, 2), 'utf-8')
 }
@@ -67,7 +106,12 @@ function sendToWin(channel, data) {
   }
 }
 
+const downloadSessions = new Set()
+
 function setupDownloadHandler(sessionObj) {
+  if (downloadSessions.has(sessionObj)) return
+  downloadSessions.add(sessionObj)
+
   sessionObj.on('will-download', (_event, item) => {
     const id = Date.now().toString(36) + Math.random().toString(36).substr(2)
     activeDownloads.set(id, item)
@@ -115,6 +159,265 @@ function setupDownloadHandler(sessionObj) {
   })
 }
 
+const DEFAULT_PROTOCOL_BLACKLIST = [
+  'shell:', 'explorer:', 'cmd:', 'powershell:', 'pwsh:', 'regedit:',
+  'control:', 'ms-settings:', 'ms-windows-store:', 'ms-edge:',
+  'ms-excel:', 'ms-word:', 'ms-powerpoint:', 'ms-outlook:', 'ms-teams:',
+  'rundll32:', 'wscript:', 'cscript:', 'mshta:', 'javascript:',
+  'vbscript:', 'about:', 'chrome:', 'edge:', 'brave:', 'firefox:',
+  'bytedance:', 'douyin:', 'douyinlite:', 'iesdouyin:', 'toutiao:',
+  'xigua:', 'huoshan:', 'feishu:', 'lark:', 'capcut:', 'jianying:',
+  'volcengine:', 'doubao:', 'zijie:',
+  'wechat:', 'weixin:', 'qq:', 'mqq:', 'tencent:', 'wxpay:',
+  'qzone:', 'tim:', 'wegame:', 'qqmusic:', 'qqvideo:', 'tencentvideo:',
+  'kingsoft:', 'wps:', 'dianping:', 'meituan:',
+  'alipay:', 'alipays:', 'taobao:', 'tmall:', '1688:', 'dingtalk:',
+  'aliyun:', 'alibaba:', 'eleme:', 'koubei:', 'amap:', 'gaode:',
+  'baidu:', 'baidumap:', 'tieba:', 'pan:', 'baiduapp:', 'haokan:',
+  'jd:', 'openapp.jdmobile:', 'bilibili:', 'xiaohongshu:', 'kuaishou:',
+  'pinduoduo:', 'suning:', 'netease:', '163:', 'music.163:', 'orpheus:',
+  'zhihu:', 'weibo:', 'sinaweibo:', '58:', 'ganji:', 'lianjia:',
+  'ke:', 'didi:', 'mobike:', 'ofo:', 'ctrip:', 'qunar:', 'mafengwo:',
+  'google:', 'gmail:', 'drive:', 'maps:', 'youtube:',
+  'apple:', 'itunes:', 'appstore:', 'icloud:', 'facetime:', 'imessage:',
+  'microsoft:', 'skype:', 'teams:', 'outlook:', 'onedrive:',
+  'amazon:', 'aws:', 'spotify:', 'netflix:', 'hulu:', 'disney:',
+  'steam:', 'epic:', 'origin:', 'uplay:', 'discord:', 'slack:',
+  'zoom:', 'meet:', 'webex:', 'telegram:', 'whatsapp:', 'signal:',
+  'twitter:', 'x:', 'facebook:', 'instagram:', 'tiktok:', 'snapchat:',
+  'mailto:', 'tel:', 'sms:', 'fax:', 'callto:',
+  'ssh:', 'telnet:', 'ftp:', 'sftp:', 'tftp:', 'ldap:',
+  'nntp:', 'gopher:', 'irc:', 'xmpp:', 'jabber:', 'magnet:',
+  'thunder:', 'xunlei:', 'ed2k:', 'emule:', 'bittorrent:',
+  'torrent:', 'flashget:', 'qqdl:', 'fs2you:',
+  '115:', 'baiduyun:', 'pan.baidu:', 'aliyundrive:',
+  'epicgames:', 'battlenet:',
+  'riotgames:', 'leagueoflegends:', 'valorant:', 'csgo:',
+  'minecraft:', 'roblox:', 'fortnite:', 'pubg:', 'genshin:',
+  'starrail:', 'zenless:', 'wutheringwaves:',
+]
+
+let protocolSettings = {
+  mode: 'blacklist',
+  whitelist: ['http:', 'https:', 'file:', 'blob:', 'data:'],
+  blacklist: [...DEFAULT_PROTOCOL_BLACKLIST],
+}
+
+function saveProtocolSettings() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+    const existing = fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) : {}
+    existing.protocolBlockMode = protocolSettings.mode
+    existing.protocolWhitelist = protocolSettings.whitelist
+    existing.protocolBlacklist = protocolSettings.blacklist
+    fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8')
+  } catch (_) {}
+}
+
+function loadProtocolSettings() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+    if (fs.existsSync(settingsPath)) {
+      const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      protocolSettings = {
+        mode: raw.protocolBlockMode || 'blacklist',
+        whitelist: raw.protocolWhitelist || ['http:', 'https:', 'file:', 'blob:', 'data:'],
+        blacklist: raw.protocolBlacklist || [...DEFAULT_PROTOCOL_BLACKLIST],
+      }
+    }
+  } catch (_) {}
+}
+
+// ===== 权限管理系统 =====
+let permissionSettings = {
+  camera: 'ask',
+  microphone: 'ask',
+  geolocation: 'ask',
+  notifications: 'ask',
+  midiSysex: 'block',
+  pointerLock: 'ask',
+  fullscreen: 'ask',
+  openExternal: 'ask',
+  clipboardRead: 'ask',
+  clipboardSanitizedWrite: 'ask',
+  idleDetection: 'block',
+  serial: 'block',
+  sensors: 'block',
+  displayCapture: 'ask',
+  hid: 'block',
+  usb: 'block',
+}
+
+// Chromium 权限名 → 内部权限名的映射
+const PERMISSION_KEY_MAP = {
+  // 摄像头
+  video_capture: 'camera',
+  videoCapture: 'camera',
+  camera: 'camera',
+  // 麦克风
+  audio_capture: 'microphone',
+  audioCapture: 'microphone',
+  microphone: 'microphone',
+  // 显示捕获
+  display_capture: 'displayCapture',
+  displayCapture: 'displayCapture',
+  // 剪贴板写入
+  clipboard_sanitized_write: 'clipboardSanitizedWrite',
+  clipboardSanitizedWrite: 'clipboardSanitizedWrite',
+  // 传感器
+  motion_sensors: 'sensors',
+  orientation_sensors: 'sensors',
+  ambient_light_sensor: 'sensors',
+  sensor: 'sensors',
+  sensors: 'sensors',
+}
+
+function getPermissionStatus(permission) {
+  const key = PERMISSION_KEY_MAP[permission] || permission
+  const setting = permissionSettings[key]
+  if (setting === 'block') return false
+  if (setting === 'allow') return true
+  return undefined
+}
+
+function loadPermissionSettings() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+    if (fs.existsSync(settingsPath)) {
+      const raw = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      if (raw.permissionSettings) {
+        permissionSettings = { ...permissionSettings, ...raw.permissionSettings }
+      }
+    }
+  } catch (_) {}
+}
+
+function savePermissionSettings() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+    const existing = fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) : {}
+    existing.permissionSettings = permissionSettings
+    fs.writeFileSync(settingsPath, JSON.stringify(existing, null, 2), 'utf-8')
+  } catch (_) {}
+}
+
+const PERMISSION_LABELS = {
+  camera: '摄像头',
+  microphone: '麦克风',
+  media: '摄像头/麦克风',
+  geolocation: '位置信息',
+  notifications: '桌面通知',
+  midiSysex: 'MIDI 设备',
+  pointerLock: '指针锁定',
+  fullscreen: '全屏',
+  openExternal: '打开外部应用',
+  clipboardRead: '读取剪贴板',
+  idleDetection: '空闲检测',
+  serial: '串口设备',
+  sensors: '传感器',
+  displayCapture: '屏幕录制',
+  hid: 'HID 设备',
+  usb: 'USB 设备',
+  clipboardSanitizedWrite: '写入剪贴板',
+}
+
+function getPermissionKey(permission) {
+  return PERMISSION_KEY_MAP[permission] || permission
+}
+
+// 待处理的权限请求队列
+let permRequestId = 0
+const pendingPermRequests = new Map()
+
+function showPermissionDialog(permission) {
+  if (!win || win.isDestroyed()) return Promise.resolve(false)
+  const id = ++permRequestId
+  const key = getPermissionKey(permission)
+  const label = PERMISSION_LABELS[key] || permission
+  return new Promise((resolve) => {
+    pendingPermRequests.set(id, { resolve, key })
+    win.webContents.send('permission-request', { id, permission, label })
+  })
+}
+
+ipcMain.handle('permission-response', (_e, { id, allowed, remember }) => {
+  const pending = pendingPermRequests.get(id)
+  if (!pending) return false
+  pendingPermRequests.delete(id)
+  if (remember) {
+    permissionSettings[pending.key] = allowed ? 'allow' : 'block'
+    savePermissionSettings()
+  }
+  pending.resolve(allowed)
+  return true
+})
+
+function setupPermissionHandlers(sessionObj) {
+  sessionObj.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const status = getPermissionStatus(permission)
+    if (status === true) {
+      // 允许
+      callback(true)
+    } else if (status === false) {
+      // 拒绝
+      callback(false)
+    } else {
+      // 询问 — 弹出授权对话框
+      if (!win || win.isDestroyed()) {
+        callback(false)
+        return
+      }
+      // setPermissionRequestHandler 支持异步 callback
+      showPermissionDialog(permission).then(allowed => {
+        callback(allowed)
+      })
+    }
+  })
+
+  sessionObj.setPermissionCheckHandler((_webContents, permission) => {
+    const status = getPermissionStatus(permission)
+    if (status !== undefined) return status
+    return undefined
+  })
+}
+
+function shouldBlockUrl(url) {
+  if (protocolSettings.mode === 'off') return false
+  let protocol
+  try {
+    protocol = new URL(url).protocol.toLowerCase()
+  } catch (_) {
+    // 自定义协议（如 bytedance://、taobao://）在 URL 解析时会抛出异常
+    // 用字符串方式提取协议，确保黑名单/白名单检查仍然生效
+    const match = url.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):/)
+    if (match) {
+      protocol = match[1].toLowerCase() + ':'
+    } else {
+      return false
+    }
+  }
+  if (protocolSettings.mode === 'whitelist') {
+    return !protocolSettings.whitelist.includes(protocol)
+  }
+  if (protocolSettings.mode === 'blacklist') {
+    return protocolSettings.blacklist.includes(protocol)
+  }
+  if (protocolSettings.mode === 'both') {
+    return !protocolSettings.whitelist.includes(protocol) || protocolSettings.blacklist.includes(protocol)
+  }
+  return false
+}
+
+function setupProtocolWebRequest(sessionObj) {
+  sessionObj.webRequest.onBeforeRequest((details, callback) => {
+    if (shouldBlockUrl(details.url)) {
+      callback({ cancel: true })
+    } else {
+      callback({})
+    }
+  })
+}
+
 app.on('web-contents-created', (_event, contents) => {
   const isWebview = contents.getType() === 'webview'
   if (!isWebview) return
@@ -122,12 +425,47 @@ app.on('web-contents-created', (_event, contents) => {
   // webview 下载也走统一处理器
   setupDownloadHandler(contents.session)
 
-  // 拦截 window.open / target=_blank，改为在主窗口新标签页打开
+  // webview 协议拦截
+  setupProtocolWebRequest(contents.session)
+
+  // 权限控制
+  setupPermissionHandlers(contents.session)
+
+  // 拦截 window.open / target=_blank
   contents.setWindowOpenHandler(({ url }) => {
+    if (shouldBlockUrl(url)) return { action: 'deny' }
     if (win && !win.isDestroyed()) {
       win.webContents.send('open-new-tab', url)
     }
     return { action: 'deny' }
+  })
+
+  // 拦截主框架导航到危险协议
+  contents.on('will-navigate', (event, url) => {
+    if (shouldBlockUrl(url)) {
+      event.preventDefault()
+    }
+  })
+
+  // 拦截服务端重定向到危险协议
+  contents.on('will-redirect', (event, url) => {
+    if (shouldBlockUrl(url)) {
+      event.preventDefault()
+    }
+  })
+
+  // 拦截所有框架（含子框架/iframe）的导航
+  contents.on('did-start-navigation', (event, url, isInPlace, isMainFrame, frameProcessId, frameRoutingId) => {
+    if (shouldBlockUrl(url)) {
+      if (isMainFrame) {
+        contents.stop()
+      } else {
+        try {
+          const frame = contents.frameForId(frameProcessId, frameRoutingId)
+          if (frame) frame.executeJavaScript('window.stop()')
+        } catch (_) {}
+      }
+    }
   })
 
   contents.on('before-input-event', (event, input) => {
@@ -268,6 +606,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
+      sandbox: true,
+      enableRemoteModule: false,
       backgroundThrottling: false,
       spellcheck: false,
     },
@@ -324,6 +664,13 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
+
+  win.webContents.on('did-finish-load', () => {
+    if (pendingOpenFile) {
+      win.webContents.send('open-local-file', pendingOpenFile)
+      pendingOpenFile = null
+    }
+  })
 }
 
 ipcMain.on('set-window-title', (_event, title) => {
@@ -481,6 +828,8 @@ ipcMain.handle('open-incognito', () => {
       nodeIntegration: false,
       contextIsolation: true,
       webviewTag: true,
+      sandbox: true,
+      enableRemoteModule: false,
       partition: 'persist:incognito',
     },
   })
@@ -632,7 +981,7 @@ ipcMain.handle('extensions:install', async (_e) => {
 ipcMain.handle('extensions:list', () => {
   const list = []
   for (const [, ext] of installedExtensions) {
-    list.push({ id: ext.id, name: ext.name, version: ext.version, path: ext.path, enabled: ext.enabled })
+    list.push({ id: ext.id, name: ext.name, version: ext.version, path: ext.path, enabled: ext.enabled, icon: ext.icon })
   }
   return list
 })
@@ -677,7 +1026,8 @@ ipcMain.handle('get-download-path', () => {
 // ===== Cookie 管理 =====
 ipcMain.handle('get-cookies', async (_e, domain) => {
   try {
-    const cookies = await session.defaultSession.cookies.get({ domain: domain || '' })
+    const filter = domain ? { domain } : {}
+    const cookies = await session.defaultSession.cookies.get(filter)
     return cookies.map(c => ({
       name: c.name,
       value: c.value,
@@ -703,23 +1053,88 @@ ipcMain.handle('delete-cookie', async (_e, { name, url }) => {
 
 // ===== 站点权限 =====
 ipcMain.handle('get-site-permissions', async () => {
+  return Object.entries(permissionSettings).map(([type, status]) => ({ type, status }))
+})
+
+ipcMain.handle('update-permission', async (_e, { type, status }) => {
+  if (permissionSettings.hasOwnProperty(type)) {
+    permissionSettings[type] = status
+    savePermissionSettings()
+    return true
+  }
+  return false
+})
+
+// 导出/导入外部配置（不在 localStorage 中的数据）
+ipcMain.handle('get-external-settings', async () => {
+  return { permissionSettings, protocolSettings }
+})
+
+ipcMain.handle('set-external-settings', async (_e, data) => {
   try {
-    const perms = []
-    const types = ['media', 'geolocation', 'notifications', 'midiSysex', 'pointerLock', 'fullscreen', 'openExternal']
-    return types.map(type => ({ type, status: 'ask' }))
+    if (data.permissionSettings) {
+      permissionSettings = { ...permissionSettings, ...data.permissionSettings }
+      savePermissionSettings()
+    }
+    if (data.protocolSettings) {
+      protocolSettings = { ...protocolSettings, ...data.protocolSettings }
+      saveProtocolSettings()
+    }
+    return true
   } catch (_) {
-    return []
+    return false
   }
 })
 
+ipcMain.handle('get-protocol-settings', async () => {
+  return protocolSettings
+})
+
+ipcMain.handle('update-protocol-settings', async (_e, data) => {
+  protocolSettings = {
+    mode: data.mode || 'blacklist',
+    whitelist: data.whitelist || ['http:', 'https:', 'file:', 'blob:', 'data:'],
+    blacklist: data.blacklist || [],
+  }
+  saveProtocolSettings()
+  return true
+})
+
 app.whenReady().then(() => {
+  if (!gotTheLock) {
+    app.quit()
+    return
+  }
   Menu.setApplicationMenu(null)
   loadExtensions()
+  loadProtocolSettings()
+  loadPermissionSettings()
   createWindow()
   setupAdBlocker(session.defaultSession)
+  setupProtocolWebRequest(session.defaultSession)
+  setupPermissionHandlers(session.defaultSession)
 
   // 主页面下载
   setupDownloadHandler(session.defaultSession)
+
+  // 处理首次启动时命令行中的文件参数
+  const filePath = findFileArg(process.argv)
+  if (filePath) {
+    pendingOpenFile = 'file:///' + filePath.replace(/\\/g, '/')
+  }
+
+  // macOS open-file 事件
+  app.on('open-file', (_event, filePath) => {
+    _event.preventDefault()
+    if (win && !win.isDestroyed()) {
+      const fileUrl = 'file:///' + filePath.replace(/\\/g, '/')
+      win.webContents.send('open-local-file', fileUrl)
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    } else {
+      pendingOpenFile = 'file:///' + filePath.replace(/\\/g, '/')
+    }
+  })
 })
 
 app.on('window-all-closed', () => {

@@ -1,5 +1,5 @@
 <template>
-  <div class="panel reading-list-panel" :style="panelStyle">
+  <div class="panel reading-list-panel" :style="panelStyle" @click.stop>
     <div class="panel-header">
       <h3>{{ t('readingList') }}</h3>
       <div class="header-actions">

@@ -8,6 +8,12 @@ export function useWebview(deps) {
   const canGoBack = ref(false)
   const canGoForward = ref(false)
   const hasVideo = ref(false)
+  const webviewPreloadPath = ref('')
+
+  // 获取 preload 路径
+  window.electronAPI?.getWebviewPreloadPath().then(path => {
+    webviewPreloadPath.value = path || ''
+  })
   const findBarRef = ref(null)
   const showFindBar = ref(false)
 
@@ -157,7 +163,7 @@ export function useWebview(deps) {
   function navigate() {
     let input = deps.urlInput.value.trim()
     if (!input) return
-    if (!/^https?:\/\//i.test(input)) {
+    if (!/^(https?|file):\/\//i.test(input)) {
       if (/^[\w-]+(\.[\w-]+)+/.test(input)) {
         input = 'https://' + input
       } else {
@@ -295,6 +301,7 @@ export function useWebview(deps) {
     webviewRefs, webviewReady, setupListenersMap,
     canGoBack, canGoForward, hasVideo, findBarRef, showFindBar,
     setWebviewRef, setupWebviewListeners, updateNavState,
+    webviewPreloadPath,
     goBack, goForward, reload, navigate, loadInTab,
     openUrlInNewTab, openUrlInNewWindow, openUrlInSplitView,
     detectVideo, enterPip, openWebviewDevTools, printCurrentPage,
