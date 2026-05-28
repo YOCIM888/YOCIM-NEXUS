@@ -117,6 +117,10 @@ export function useSettings() {
     width: (reactiveSettings.value.extensionsPanelWidth || 260) + 'px',
     background: reactiveSettings.value.extensionsPanelBg || undefined,
   }))
+  const aiPanelStyle = computed(() => ({
+    width: (reactiveSettings.value.aiPanelWidth || 380) + 'px',
+    background: reactiveSettings.value.aiPanelBg || undefined,
+  }))
 
   const bookmarkVersion = ref(0)
 
@@ -131,6 +135,6 @@ export function useSettings() {
     systemDark, isDark, LIGHT_VARS, DARK_VARS, applyCustomTheme,
     bookmarkPanelStyle, readingListPanelStyle, historyPanelStyle,
     downloadPanelStyle, notesPanelStyle, extensionsPanelStyle,
-    bookmarkVersion, isCurrentBookmarked
+    aiPanelStyle, bookmarkVersion, isCurrentBookmarked
   }
 }

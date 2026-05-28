@@ -70,6 +70,7 @@
       :showToolbarDownloads="reactiveSettings.toolbarDownloads !== false"
       :showToolbarNotes="reactiveSettings.toolbarNotes !== false"
       :showToolbarExtensions="reactiveSettings.toolbarExtensions !== false"
+      :showToolbarAI="reactiveSettings.toolbarAI !== false"
       @back="goBack"
       @forward="goForward"
       @reload="reload"
@@ -84,6 +85,7 @@
       @toggleReadingList="toggleReadingListWithCleanup"
       @toggleNotes="toggleNotesWithCleanup"
       @toggleExtensions="toggleExtensionsWithCleanup"
+      @toggleAI="toggleAIWithCleanup"
       @enterPip="enterPip"
       @openSettings="openSettings"
     />
@@ -183,6 +185,11 @@
         :panelStyle="extensionsPanelStyle"
         @close="activePanel = ''"
       />
+      <AiPanel
+        v-if="showAI"
+        :panelStyle="aiPanelStyle"
+        @close="showAI = false"
+      />
     </div>
 
     <!-- 权限请求弹窗 -->
@@ -230,7 +237,7 @@ import SettingsPage from './components/SettingsPage.vue'
 import FindBar from './components/FindBar.vue'
 import ExtensionsPanel from './components/ExtensionsPanel.vue'
 import ReadingListPanel from './components/ReadingListPanel.vue'
-
+import AiPanel from './components/AiPanel.vue'
 const { t, setLocale, getLocale } = useI18n()
 
 const {
@@ -238,7 +245,7 @@ const {
   systemDark, isDark, applyCustomTheme,
   bookmarkPanelStyle, readingListPanelStyle, historyPanelStyle,
   downloadPanelStyle, notesPanelStyle, extensionsPanelStyle,
-  bookmarkVersion, isCurrentBookmarked
+  aiPanelStyle, bookmarkVersion, isCurrentBookmarked
 } = useSettings()
 
 const {
@@ -257,6 +264,7 @@ const showUrlSuggestions = ref(false)
 let urlSuggestTimer = null
 const showNotes = ref(false)
 const showReadingList = ref(false)
+const showAI = ref(false)
 const showLangDialog = ref(false)
 const highlightLangSetting = ref(false)
 const navBarRef = ref(null)
@@ -371,30 +379,42 @@ function closeAllPanels() {
   activePanel.value = ''
   showReadingList.value = false
   showNotes.value = false
+  showAI.value = false
 }
 
 function togglePanelWithCleanup(name) {
   showReadingList.value = false
   showNotes.value = false
+  showAI.value = false
   togglePanel(name)
 }
 
 function toggleReadingListWithCleanup() {
   activePanel.value = ''
   showNotes.value = false
+  showAI.value = false
   showReadingList.value = !showReadingList.value
 }
 
 function toggleNotesWithCleanup() {
   activePanel.value = ''
   showReadingList.value = false
+  showAI.value = false
   showNotes.value = !showNotes.value
 }
 
 function toggleExtensionsWithCleanup() {
   showReadingList.value = false
   showNotes.value = false
+  showAI.value = false
   activePanel.value = activePanel.value === 'extensions' ? '' : 'extensions'
+}
+
+function toggleAIWithCleanup() {
+  showReadingList.value = false
+  showNotes.value = false
+  activePanel.value = ''
+  showAI.value = !showAI.value
 }
 
 function confirmLangDialog() {
