@@ -90,7 +90,7 @@ function hideDevToolsPanel() {
 const gotTheLock = app.requestSingleInstanceLock()
 
 function findFileArg(argv) {
-  const exts = ['.html', '.htm', '.xhtml', '.svg', '.xml', '.txt', '.pdf', '.mht', '.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp']
+  const exts = ['.html', '.htm', '.xhtml', '.svg', '.xml', '.txt', '.pdf', '.mht', '.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.mp4', '.webm']
   for (const a of argv) {
     if (!a || a.startsWith('-') || a.startsWith('--')) continue
     const resolved = path.resolve(a)
@@ -867,9 +867,20 @@ ipcMain.handle('download:cancel', (_e, id) => {
 })
 
 ipcMain.handle('set-default-browser', () => {
-  app.setAsDefaultProtocolClient('http')
-  app.setAsDefaultProtocolClient('https')
+  if (process.platform === 'win32') {
+    app.setAsDefaultProtocolClient('http')
+    app.setAsDefaultProtocolClient('https')
+    // Windows 10/11 不允许程序静默修改默认浏览器，打开系统设置页引导用户手动选择
+    require('child_process').exec('start ms-settings:defaultapps', () => {})
+  } else if (process.platform === 'darwin') {
+    app.setAsDefaultProtocolClient('http')
+    app.setAsDefaultProtocolClient('https')
+  }
   return true
+})
+
+ipcMain.handle('is-default-browser', () => {
+  return app.isDefaultProtocolClient('http') && app.isDefaultProtocolClient('https')
 })
 
 ipcMain.handle('adblock-toggle', (_e, enabled) => {
