@@ -9,6 +9,16 @@ const KEYS = {
   PASSWORDS: 'yocim_passwords',
   PASSWORD_PIN: 'yocim_password_pin',
   SESSION: 'yocim_session',
+  AI_CONFIG: 'yocim_ai_config',
+}
+
+export const AI_PROVIDERS = {
+  openai: { name: 'OpenAI', endpoint: 'https://api.openai.com/v1/chat/completions', authHeader: 'Bearer', type: 'openai' },
+  anthropic: { name: 'Anthropic Claude', endpoint: 'https://api.anthropic.com/v1/messages', authHeader: 'x-api-key', type: 'anthropic', modelId: 'claude-3-5-sonnet-20241022' },
+  deepseek: { name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1/chat/completions', authHeader: 'Bearer', type: 'openai' },
+  groq: { name: 'Groq', endpoint: 'https://api.groq.com/openai/v1/chat/completions', authHeader: 'Bearer', type: 'openai' },
+  ollama: { name: 'Ollama (本地)', endpoint: 'http://localhost:11434/v1/chat/completions', authHeader: 'Bearer', type: 'openai' },
+  custom: { name: '自定义', endpoint: '', authHeader: 'Bearer', type: 'openai' },
 }
 
 const defaultNavSites = [
@@ -69,7 +79,10 @@ const defaultSettings = {
   toolbarHistory: true,
   toolbarDownloads: true,
   toolbarNotes: false,
-  toolbarExtensions: true,
+  toolbarExtensions: false,
+  toolbarAI: true,
+  aiPanelWidth: 380,
+  aiPanelBg: '',
   protocolBlockMode: 'blacklist',
   protocolWhitelist: ['http:', 'https:', 'file:', 'blob:', 'data:'],
   protocolBlacklist: [
@@ -518,6 +531,32 @@ export function loadSession() {
   } catch (_) {
     return null
   }
+}
+
+// ===== AI 配置 =====
+
+const defaultAiConfig = {
+  models: [],
+  activeModelId: '',
+}
+
+export function getAiConfig() {
+  try {
+    const data = localStorage.getItem(KEYS.AI_CONFIG)
+    if (!data) return { ...defaultAiConfig }
+    return { ...defaultAiConfig, ...JSON.parse(data) }
+  } catch (_) {
+    return { ...defaultAiConfig }
+  }
+}
+
+export function saveAiConfig(config) {
+  localStorage.setItem(KEYS.AI_CONFIG, JSON.stringify(config))
+}
+
+export function getActiveAiModel() {
+  const config = getAiConfig()
+  return config.models.find(m => m.id === config.activeModelId && m.enabled) || null
 }
 
 // ===== 重置所有设置 =====

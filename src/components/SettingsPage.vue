@@ -72,20 +72,30 @@
 
         <div class="setting-row">
           <div class="setting-info">
-            <span>{{ t('bookmarks') }}</span>
+            <span>{{ t('ai') }}</span>
           </div>
           <label class="toggle">
-            <input type="checkbox" v-model="toolbarBookmarks" @change="changeToolbarBookmarks" />
+            <input type="checkbox" v-model="toolbarAI" @change="changeToolbarAI" />
             <span class="toggle-slider"></span>
           </label>
         </div>
 
         <div class="setting-row">
           <div class="setting-info">
-            <span>{{ t('readingList') }}</span>
+            <span>{{ t('extensions') }}</span>
           </div>
           <label class="toggle">
-            <input type="checkbox" v-model="toolbarReadingList" @change="changeToolbarReadingList" />
+            <input type="checkbox" v-model="toolbarExtensions" @change="changeToolbarExtensions" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span>{{ t('bookmarks') }}</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" v-model="toolbarBookmarks" @change="changeToolbarBookmarks" />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -112,20 +122,20 @@
 
         <div class="setting-row">
           <div class="setting-info">
-            <span>{{ t('notes') }}</span>
+            <span>{{ t('readingList') }}</span>
           </div>
           <label class="toggle">
-            <input type="checkbox" v-model="toolbarNotes" @change="changeToolbarNotes" />
+            <input type="checkbox" v-model="toolbarReadingList" @change="changeToolbarReadingList" />
             <span class="toggle-slider"></span>
           </label>
         </div>
 
         <div class="setting-row">
           <div class="setting-info">
-            <span>{{ t('extensions') }}</span>
+            <span>{{ t('notes') }}</span>
           </div>
           <label class="toggle">
-            <input type="checkbox" v-model="toolbarExtensions" @change="changeToolbarExtensions" />
+            <input type="checkbox" v-model="toolbarNotes" @change="changeToolbarNotes" />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -680,6 +690,8 @@ const toolbarReadingList = ref(settings.value.toolbarReadingList !== false)
 const toolbarHistory = ref(settings.value.toolbarHistory !== false)
 const toolbarDownloads = ref(settings.value.toolbarDownloads !== false)
 const toolbarNotes = ref(settings.value.toolbarNotes !== false)
+const toolbarExtensions = ref(settings.value.toolbarExtensions !== false)
+const toolbarAI = ref(settings.value.toolbarAI !== false)
 
 // 外观
 const hideLogo = ref(settings.value.hideLogo || false)
@@ -933,6 +945,14 @@ function changeToolbarDownloads() {
 }
 function changeToolbarNotes() {
   settings.value = updateSettings({ toolbarNotes: toolbarNotes.value })
+  refreshSettings()
+}
+function changeToolbarExtensions() {
+  settings.value = updateSettings({ toolbarExtensions: toolbarExtensions.value })
+  refreshSettings()
+}
+function changeToolbarAI() {
+  settings.value = updateSettings({ toolbarAI: toolbarAI.value })
   refreshSettings()
 }
 

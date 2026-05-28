@@ -81,6 +81,7 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 
 ### Tools
 
+- **AI Assistant** — Multi-model AI chat (OpenAI / Claude / DeepSeek / Groq / Ollama); streaming responses, multi-model config with API key management
 - **Download manager** — Real-time progress, speed display, pause/resume, open file/folder
 - **In-page search** — Ctrl+F with match count
 - **Split view** — Two tabs side by side for comparison
@@ -88,6 +89,7 @@ YOCIM NEXUS is a lightweight desktop browser built with **Electron + Vue 3** and
 - **Print** — Print current page directly
 - **Picture-in-Picture** — Pop out video, always on top
 - **Extensions** — Install and manage Chrome extension directories
+- **Toolbar customization** — Toggle individual tool buttons (AI, Extensions, Bookmarks, History, Downloads, Reading List, Notes) in settings; default: AI, Bookmarks, History, Downloads
 - **Update checker** — Detect latest release from GitHub
 - **Context menu** — Right-click for navigation, image actions (copy image, copy link, view image), print, screenshot
 
@@ -142,7 +144,9 @@ Yocim-Browser/
 │   ├── components/
 │   │   ├── HomePage.vue         # Homepage (logo, search, nav grid, context menus)
 │   │   ├── SettingsPage.vue     # Settings (7 sections)
-│   │   ├── NavBar.vue           # Navigation bar (address bar, bookmarks, panels)
+│   │   ├── NavBar.vue           # Navigation bar (address bar, toolbar buttons)
+│   │   ├── AiPanel.vue           # AI chat panel (multi-model, streaming)
+│   │   ├── ExtensionsPanel.vue   # Extensions manager
 │   │   ├── TabBar.vue           # Tab bar (drag reorder, audio, freeze, split view)
 │   │   ├── TabContextMenu.vue   # Tab right-click context menu
 │   │   ├── VerticalTitleBar.vue # Vertical layout title bar
@@ -158,7 +162,8 @@ Yocim-Browser/
 │   │   ├── useTabs.js           # Tab lifecycle & state management
 │   │   ├── useWebview.js        # Webview interaction & navigation
 │   │   ├── useKeyboard.js       # Keyboard shortcuts handler
-│   │   └── useDownloads.js      # Download management
+│   │   ├── useDownloads.js      # Download management
+│   │   └── useAi.js             # AI model config & streaming API
 │   └── utils/
 │       ├── i18n.js              # Internationalization (zh/en)
 │       └── storage.js           # Data persistence & password management
