@@ -1,5 +1,5 @@
 <template>
-  <div class="panel download-panel" :style="panelStyle">
+  <div class="panel download-panel" :style="panelStyle" @click.stop>
     <div class="panel-header">
       <h3>{{ t('downloads') }}</h3>
       <div class="header-actions">
@@ -86,7 +86,7 @@ function toggleSearch() {
 
 function handleViewFolder() {
   if (props.downloadPath) {
-    emit('openDownloadFolder')
+    emit('openDownloadFolder', props.downloadPath)
   } else {
     alert(t('downloadFolderNotSet'))
   }

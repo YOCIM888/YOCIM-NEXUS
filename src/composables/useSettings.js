@@ -94,24 +94,28 @@ export function useSettings() {
   }
 
   const bookmarkPanelStyle = computed(() => ({
-    width: (reactiveSettings.value.bookmarkPanelWidth || 360) + 'px',
+    width: (reactiveSettings.value.bookmarkPanelWidth || 260) + 'px',
     background: reactiveSettings.value.bookmarkPanelBg || undefined,
   }))
   const readingListPanelStyle = computed(() => ({
-    width: (reactiveSettings.value.readingListPanelWidth || 360) + 'px',
+    width: (reactiveSettings.value.readingListPanelWidth || 260) + 'px',
     background: reactiveSettings.value.readingListPanelBg || undefined,
   }))
   const historyPanelStyle = computed(() => ({
-    width: (reactiveSettings.value.historyPanelWidth || 360) + 'px',
+    width: (reactiveSettings.value.historyPanelWidth || 260) + 'px',
     background: reactiveSettings.value.historyPanelBg || undefined,
   }))
   const downloadPanelStyle = computed(() => ({
-    width: (reactiveSettings.value.downloadPanelWidth || 380) + 'px',
+    width: (reactiveSettings.value.downloadPanelWidth || 260) + 'px',
     background: reactiveSettings.value.downloadPanelBg || undefined,
   }))
   const notesPanelStyle = computed(() => ({
-    width: (reactiveSettings.value.notesPanelWidth || 360) + 'px',
+    width: (reactiveSettings.value.notesPanelWidth || 260) + 'px',
     background: reactiveSettings.value.notesPanelBg || undefined,
+  }))
+  const extensionsPanelStyle = computed(() => ({
+    width: (reactiveSettings.value.extensionsPanelWidth || 260) + 'px',
+    background: reactiveSettings.value.extensionsPanelBg || undefined,
   }))
 
   const bookmarkVersion = ref(0)
@@ -126,7 +130,7 @@ export function useSettings() {
     reactiveSettings, tabsPosition, sidebarCollapsed, toggleSidebar,
     systemDark, isDark, LIGHT_VARS, DARK_VARS, applyCustomTheme,
     bookmarkPanelStyle, readingListPanelStyle, historyPanelStyle,
-    downloadPanelStyle, notesPanelStyle,
+    downloadPanelStyle, notesPanelStyle, extensionsPanelStyle,
     bookmarkVersion, isCurrentBookmarked
   }
 }

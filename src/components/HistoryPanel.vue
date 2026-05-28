@@ -1,5 +1,5 @@
 <template>
-  <div class="panel history-panel" :style="panelStyle">
+  <div class="panel history-panel" :style="panelStyle" @click.stop>
     <div class="panel-header">
       <h3>{{ t('history') }}</h3>
       <div class="header-actions">
