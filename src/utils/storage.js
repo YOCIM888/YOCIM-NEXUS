@@ -659,7 +659,52 @@ export function getActiveMemories() {
 
 // ===== AI 默认系统提示词 =====
 
-export const AI_DEFAULT_SYSTEM_PROMPT = '你是 YOCIM 浏览器内置的 AI 助手，名字叫 Nex。你是一个友好、耐心、知识渊博的助手。你的目标是：\n1. 用简洁清晰的语言回答用户问题\n2. 如果问题复杂，适当展开解释，但不要冗长\n3. 使用中文回复（除非用户使用英文提问）\n4. 保持专业且温暖的语气\n5. 如果用户询问关于代码、编程、技术的问题，提供准确、实用的建议\n6. 不编造信息，不确定时坦诚说明'
+export function getBookmarksFlat() {
+  const data = getBookmarks()
+  const result = []
+  for (const folder of data.folders) {
+    const folderInfo = { id: folder.id, name: folder.name, bookmarkCount: folder.bookmarks.length }
+    result.push({ type: 'folder', ...folderInfo })
+    for (const bm of folder.bookmarks) {
+      result.push({ type: 'bookmark', id: bm.id, title: bm.title, url: bm.url, folderId: folder.id, folderName: folder.name })
+    }
+  }
+  return result
+}
+
+export function getBookmarksTree() {
+  const data = getBookmarks()
+  return data.folders.map(f => ({
+    id: f.id,
+    name: f.name,
+    bookmarks: f.bookmarks.map(b => ({ id: b.id, title: b.title, url: b.url })),
+  }))
+}
+
+export function deleteHistoryRange(fromTimestamp, toTimestamp) {
+  const history = getHistory()
+  const filtered = history.filter(e => {
+    const t = e.time || 0
+    if (fromTimestamp && t < fromTimestamp) return true
+    if (toTimestamp && t > toTimestamp) return true
+    return false
+  })
+  saveHistory(filtered)
+  return history.length - filtered.length
+}
+
+export function getHistoryInRange(fromTimestamp, toTimestamp, maxCount = 200) {
+  const history = getHistory()
+  const filtered = history.filter(e => {
+    const t = e.time || 0
+    if (fromTimestamp && t < fromTimestamp) return false
+    if (toTimestamp && t > toTimestamp) return false
+    return true
+  })
+  return filtered.slice(0, maxCount)
+}
+
+export const AI_DEFAULT_SYSTEM_PROMPT = '你是 YOCIM 浏览器内置的 AI 助手，名字叫 Nex。你是一个友好、耐心、知识渊博的助手。你的目标是：\n1. 用简洁清晰的语言回答用户问题\n2. 如果问题复杂，适当展开解释，但不要冗长\n3. 使用中文回复（除非用户使用英文提问）\n4. 保持专业且温暖的语气\n5. 如果用户询问关于代码、编程、技术的问题，提供准确、实用的建议\n6. 不编造信息，不确定时坦诚说明\n\n你具有操作浏览器的能力。当用户通过 / 命令请求浏览器操作时，你需要：\n1. 理解用户意图并确认操作目标\n2. 用自然语言解释你将要执行的操作\n3. 在响应末尾用 ```json 代码块提供操作指令\n\n支持的浏览器命令和操作：\n\n**书签管理 (/fav)** - 整理和分类书签\n- 可用操作: createFolder(名称), moveBookmark(书签id, 目标文件夹id), renameFolder(文件夹id, 新名称), deleteFolder(文件夹id), renameBookmark(文件夹id, 书签id, 新标题), deleteBookmark(文件夹id, 书签id)\n\n**设置管理 (/set)** - 调整浏览器设置\n- 可用操作: setTheme(light|dark|system), setAdBlock(true|false), setLanguage(zh|en), setNewTabPage(default|custom, url?), setStartupPage(default|custom, url?), setSearchEngine(google|bing|baidu|sogou|yandex|naver), setPageZoom(0.5~3.0), setTabsPosition(top|left), setHideLogo(true|false), setHideIcons(true|false), setIncognitoBrowsing(true|false), setSessionRestore(true|false)\n\n**扩展管理 (/exp)** - 管理浏览器扩展\n- 可用操作: disableExtension(扩展id), enableExtension(扩展id), removeExtension(扩展id)\n\n**历史管理 (/his)** - 分析和清理浏览历史\n- 可用操作: deleteToday(), deleteRange(开始时间戳, 结束时间戳), deleteAll()\n\nJSON 格式示例:\n```json\n{"actions": [{"action": "createFolder", "name": "社交"}], "summary": "创建了1个文件夹"}\n```\n\n注意：操作会由用户确认后才执行。summary 字段为必填，简要说明即将执行的操作。'
 
 // ===== 重置所有设置 =====
 

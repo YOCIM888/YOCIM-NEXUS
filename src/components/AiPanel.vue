@@ -155,32 +155,76 @@
         <div class="ai-messages" ref="messagesContainer">
           <div v-if="messages.length === 0" class="ai-chat-hint">
             <p>{{ activeModel.name }} ({{ activeModel.modelId }})</p>
-            <p class="ai-chat-hint-desc">{{ t('aiInputPlaceholder') }}</p>
+            <p class="ai-chat-hint-desc">输入 / 可执行浏览器操作</p>
           </div>
           <div v-for="(msg, i) in messages" :key="i" :class="['ai-message', msg.role]">
-            <div class="ai-message-role">{{ msg.role === 'user' ? 'You' : activeModel.name }}</div>
-            <div class="ai-message-content">{{ msg.content }}</div>
+            <span class="ai-message-label">{{ msg.role === 'user' ? 'You' : activeModel.name }}</span>
+            <div class="ai-message-bubble">
+              <template v-for="(part, pi) in parseMessageParts(msg.content)" :key="pi">
+                <div v-if="part.type === 'code'" class="ai-code-block">
+                  <div class="ai-code-header">
+                    <span class="ai-code-lang">{{ part.lang || 'code' }}</span>
+                    <button class="ai-code-copy" @click="copyText(part.content)">复制</button>
+                  </div>
+                  <pre><code>{{ part.content }}</code></pre>
+                </div>
+                <div v-else class="ai-message-text">{{ part.content }}</div>
+              </template>
+            </div>
+          </div>
+          <!-- 待确认操作卡片 -->
+          <div v-if="pendingActions" class="ai-confirm-card">
+            <div class="ai-confirm-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div class="ai-confirm-card-text">
+              <div class="ai-confirm-card-title">{{ t('aiActionSummary') }}</div>
+              <p class="ai-confirm-card-summary">{{ pendingActions.summary }}</p>
+            </div>
+            <div class="ai-confirm-card-actions">
+              <button class="btn" @click="doConfirmActions">{{ t('aiConfirmExecute') }}</button>
+              <button class="btn btn-secondary" @click="doCancelActions">{{ t('aiCancelAction') }}</button>
+            </div>
           </div>
           <div v-if="isStreaming && streamingContent" class="ai-message assistant">
-            <div class="ai-message-role">{{ activeModel.name }}</div>
-            <div class="ai-message-content">{{ streamingContent }}<span class="ai-cursor">|</span></div>
+            <span class="ai-message-label">{{ activeModel.name }}</span>
+            <div class="ai-message-bubble">
+              <div class="ai-message-text">{{ streamingContent }}<span class="ai-cursor">|</span></div>
+            </div>
           </div>
           <div v-else-if="isStreaming" class="ai-message assistant">
-            <div class="ai-message-role">{{ activeModel.name }}</div>
-            <div class="ai-message-content ai-thinking">{{ t('aiThinking') }}<span class="ai-cursor">|</span></div>
+            <span class="ai-message-label">{{ activeModel.name }}</span>
+            <div class="ai-message-bubble">
+              <div class="ai-message-text ai-thinking">{{ t('aiThinking') }}<span class="ai-cursor">|</span></div>
+            </div>
           </div>
         </div>
 
         <div v-if="error" class="ai-error">{{ t('aiError') }}: {{ error }}</div>
 
         <div class="ai-input-area">
-          <input
-            v-model="inputText"
-            class="ai-input"
-            :placeholder="t('aiInputPlaceholder')"
-            @keydown.enter="handleSend"
-            :disabled="isStreaming"
-          />
+          <div class="ai-input-wrapper">
+            <!-- 命令弹出菜单 -->
+            <div v-if="showCommandPopover" class="ai-command-popover" @click.stop>
+              <div
+                v-for="cmd in allCommands"
+                :key="cmd.id"
+                class="ai-command-item"
+                @click="selectCommand(cmd.command)"
+              >
+                <span class="ai-command-name">{{ cmd.command }}</span>
+                <span class="ai-command-desc">{{ t(cmd.descKey) }}</span>
+              </div>
+            </div>
+            <input
+              v-model="inputText"
+              class="ai-input"
+              placeholder="输入消息，或输入 / 执行浏览器操作..."
+              @keydown.enter="handleSend"
+              @input="onInputChange"
+              :disabled="isStreaming"
+            />
+          </div>
           <button class="ai-send-btn" @click="handleSend" :disabled="isStreaming || !inputText.trim()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
@@ -205,17 +249,17 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from '../utils/i18n'
 import { AI_PROVIDERS, AI_DEFAULT_SYSTEM_PROMPT } from '../utils/storage'
-import { useAi } from '../composables/useAi'
+import { useAi, getAllCommands } from '../composables/useAi'
 
 const { t } = useI18n()
 const {
   messages, isStreaming, error, activeModel, config,
-  memories, memoryRange,
+  memories, memoryRange, pendingActions,
   addModel, updateModel, deleteModel,
   enableModel, disableModel, maskApiKey,
   clearMessages, clearCurrentConversation, sendMessage, summarizeConversation,
   updateMemoryItem, deleteMemoryItem, setMemoryRangeDays,
-  getActiveMemories,
+  getActiveMemories, confirmPendingActions, cancelPendingActions,
 } = useAi()
 
 const props = defineProps({
@@ -228,6 +272,7 @@ const showSettings = ref(false)
 const showMemory = ref(false)
 const showForm = ref(false)
 const showClearConfirm = ref(false)
+const showCommandPopover = ref(false)
 const editingId = ref('')
 const editingMemoryId = ref('')
 const editingMemoryText = ref('')
@@ -235,6 +280,8 @@ const inputText = ref('')
 const streamingContent = ref('')
 const formApiKeyFocused = ref(false)
 const messagesContainer = ref(null)
+
+const allCommands = getAllCommands()
 
 const memoryRangeDays = computed({
   get: () => memoryRange.value,
@@ -391,9 +438,10 @@ function handleSend() {
   if (!text || isStreaming.value) return
   inputText.value = ''
   streamingContent.value = ''
+  showCommandPopover.value = false
 
-  // /memory 命令
-  if (text === '/memory') {
+  // /mem 或 /memory 命令
+  if (text === '/mem' || text === '/memory') {
     if (messages.value.length === 0) return
     summarizeConversation(
       () => { scrollToBottom() },
@@ -419,11 +467,56 @@ function scrollToBottom() {
   })
 }
 
+function onInputChange() {
+  showCommandPopover.value = inputText.value === '/'
+}
+
+function selectCommand(cmd) {
+  inputText.value = cmd + ' '
+  showCommandPopover.value = false
+}
+
+function parseMessageParts(text) {
+  const parts = []
+  const regex = /```(\w*)\n?([\s\S]*?)```/g
+  let lastIndex = 0
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) })
+    }
+    parts.push({ type: 'code', lang: match[1] || '', content: match[2].replace(/\n$/, '') })
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) })
+  }
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }]
+}
+
+function copyText(text) {
+  navigator.clipboard?.writeText(text).then(() => {}).catch(() => {})
+}
+
+function doConfirmActions() {
+  confirmPendingActions()
+  scrollToBottom()
+}
+
+function doCancelActions() {
+  cancelPendingActions()
+  scrollToBottom()
+}
+
 watch(messages, () => {
   scrollToBottom()
 }, { deep: true })
 
 watch(streamingContent, () => {
+  scrollToBottom()
+})
+
+watch(pendingActions, () => {
   scrollToBottom()
 })
 </script>
@@ -929,32 +1022,117 @@ watch(streamingContent, () => {
 }
 
 .ai-message {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
 }
 
-.ai-message-role {
-  font-size: 11px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
+.ai-message.assistant {
+  align-items: flex-start;
 }
 
-.ai-message.user .ai-message-role {
+.ai-message.user {
+  align-items: flex-end;
+}
+
+.ai-message-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+  padding: 0 4px;
+}
+
+.ai-message.user .ai-message-label {
   color: var(--accent);
 }
 
-.ai-message-content {
+.ai-message-bubble {
+  max-width: 88%;
+  padding: 10px 12px;
+  border-radius: 12px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-primary);
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.ai-message.assistant .ai-message-bubble {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 12px;
+}
+
+.ai-message.user .ai-message-bubble {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 12px;
+}
+
+.ai-message-text {
+  white-space: pre-wrap;
+  color: var(--text-primary);
 }
 
 .ai-thinking {
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* 代码块 */
+.ai-code-block {
+  margin: 6px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.ai-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+}
+
+.ai-code-lang {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.ai-code-copy {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.ai-code-copy:hover {
+  background: var(--bg-secondary);
+  color: var(--accent);
+}
+
+.ai-code-block pre {
+  margin: 0;
+  padding: 10px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-code-block code {
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: var(--text-primary);
+  white-space: pre;
 }
 
 @keyframes blink {
@@ -984,8 +1162,13 @@ watch(streamingContent, () => {
   align-items: center;
 }
 
-.ai-input {
+.ai-input-wrapper {
   flex: 1;
+  position: relative;
+}
+
+.ai-input {
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -993,10 +1176,113 @@ watch(streamingContent, () => {
   outline: none;
   background: var(--input-bg);
   color: var(--text-primary);
+  box-sizing: border-box;
 }
 
 .ai-input:focus {
   border-color: var(--accent);
+}
+
+/* 命令弹出菜单 */
+.ai-command-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 -2px 12px var(--modal-shadow);
+  overflow: hidden;
+  z-index: 70;
+}
+
+.ai-command-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ai-command-item:last-child {
+  border-bottom: none;
+}
+
+.ai-command-item:hover {
+  background: var(--bg-secondary);
+}
+
+.ai-command-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.ai-command-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* 确认操作卡片 */
+.ai-confirm-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  margin: 4px 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.ai-confirm-card-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.ai-confirm-card-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ai-confirm-card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-confirm-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.ai-confirm-card-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.ai-confirm-card-actions {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.ai-confirm-card-actions .btn {
+  padding: 5px 12px;
+  font-size: 11px;
 }
 
 .ai-send-btn {
