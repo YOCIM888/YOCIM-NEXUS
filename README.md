@@ -91,6 +91,8 @@ YOCIM NEXUS integrates a powerful AI assistant with browser control capabilities
 - **Cookie manager** — View and delete cookies by domain
 - **Site permissions** — Manage per-site permissions (location, camera, microphone, notifications)
 - **Clear data** — One-click clear all browsing data (cookies, cache, localStorage, IndexedDB)
+- **Protocol blocking** — Blacklist/whitelist mode blocks dangerous protocols (200+ blocked by default)
+- **Permission control** — Fine-grained per-site permission management with ask/allow/block policies
 
 ### Appearance & Customization
 
@@ -115,6 +117,8 @@ YOCIM NEXUS integrates a powerful AI assistant with browser control capabilities
 - **Screenshot** — Full page capture (Ctrl+Shift+S)
 - **Print** — Print current page directly
 - **Picture-in-Picture** — Pop out video, always on top
+- **Responsive preview** — Test pages at different screen sizes (Ctrl+Shift+D); device presets, custom dimensions, fit/zoom modes
+- **Developer tools** — Built-in DevTools panel docked in the window, inspects any webview tab
 - **Extensions** — Install and manage Chrome extension directories
 - **Toolbar customization** — Toggle individual tool buttons in settings
 - **Update checker** — Detect latest release from GitHub
@@ -151,6 +155,7 @@ YOCIM NEXUS integrates a powerful AI assistant with browser control capabilities
 | `Ctrl+Shift+N` | New incognito window |
 | `Ctrl+Shift+S` | Screenshot |
 | `Ctrl+Shift+I` / `F12` | Developer Tools |
+| `Ctrl+Shift+D` | Responsive preview |
 | `Alt+←` | Back |
 | `Alt+→` | Forward |
 | `F11` | Toggle fullscreen |
@@ -183,6 +188,7 @@ Yocim-Browser/
 │   │   ├── DownloadPanel.vue    # Download manager
 │   │   ├── ReadingListPanel.vue # Reading list
 │   │   ├── NotesPanel.vue       # Quick notes
+│   │   ├── ResponsiveToolbar.vue # Responsive preview toolbar
 │   │   └── FindBar.vue          # In-page search
 │   ├── composables/
 │   │   ├── useSettings.js       # Global settings & theme management
@@ -190,6 +196,7 @@ Yocim-Browser/
 │   │   ├── useWebview.js        # Webview interaction & navigation
 │   │   ├── useKeyboard.js       # Keyboard shortcuts handler
 │   │   ├── useDownloads.js      # Download management
+│   │   ├── useResponsive.js     # Responsive preview state & presets
 │   │   └── useAi.js             # AI model config, streaming API, browser commands
 │   └── utils/
 │       ├── i18n.js              # Internationalization (zh/en)

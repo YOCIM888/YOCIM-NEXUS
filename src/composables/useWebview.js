@@ -108,9 +108,7 @@ export function useWebview(deps) {
     wv.addEventListener('ipc-message', (e) => {
       if (e.channel === 'global-keydown') {
         const args = e.args[0]
-        if (args.key === 'F12') {
-          deps.toggleDevTools()
-        } else if (args.key === 'F5') {
+        if (args.key === 'F5') {
           deps.reload()
         } else if (args.key === 'F11') {
           deps.toggleFullscreen()
@@ -253,26 +251,39 @@ export function useWebview(deps) {
     }
   }
 
-  async function openWebviewDevTools() {
-    const wv = webviewRefs[deps.activeTabId.value]
-    if (!wv) {
-      window.electronAPI?.toggleDevTools()
+  let isToggling = false
+  let toggleTimer = null
+
+  function openWebviewDevTools() {
+    if (isToggling) return
+    isToggling = true
+
+    const contentArea = document.querySelector('.content-area')
+    if (!contentArea) {
+      window.electronAPI?.toggleEmbeddedDevTools()
+      isToggling = false
       return
     }
-    try {
-      if (wv.isDevToolsOpened()) {
-        wv.closeDevTools()
-      } else {
-        await window.electronAPI?.closeShellDevTools()
-        wv.openDevTools({ mode: 'detach' })
-      }
-    } catch (_) {
-      window.electronAPI?.toggleDevTools()
+    const rect = contentArea.getBoundingClientRect()
+    const bounds = {
+      x: Math.round(rect.right - 450),
+      y: Math.round(rect.top),
+      width: 450,
+      height: Math.round(rect.height),
     }
+    if (bounds.x < 0) bounds.x = 0
+
+    window.electronAPI?.toggleEmbeddedDevTools(bounds).finally(() => {
+      // 解锁延迟：防止 DevTools 关闭/打开事件还在路上时就再次触发
+      clearTimeout(toggleTimer)
+      toggleTimer = setTimeout(() => { isToggling = false }, 500)
+    })
   }
 
   function toggleDevTools() {
-    openWebviewDevTools()
+    // 防抖：忽略 300ms 内的重复调用
+    clearTimeout(toggleTimer)
+    toggleTimer = setTimeout(() => openWebviewDevTools(), isToggling ? 300 : 0)
   }
 
   function printCurrentPage() {
