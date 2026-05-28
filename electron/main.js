@@ -879,12 +879,97 @@ ipcMain.handle('clear-all-data', async () => {
     })
     await session.defaultSession.clearCache()
     await session.defaultSession.clearCodeCaches()
-    // 也清一下各 webview 分区（persist:tab-*）— 用通配清不掉，但 reload 后旧分区会被 GC
-    // 关键是默认 session 清干净 + 前端 reload，确保全新启动
+    // 清除已知的 webview 分区
+    for (const partitionName of ['persist:incognito']) {
+      try {
+        const partition = session.fromPartition(partitionName)
+        await partition.clearStorageData()
+        await partition.clearCache()
+      } catch (_) {}
+    }
   } catch (_) {
     // 忽略清理错误
   }
   return true
+})
+
+// 复原默认设置：清除所有数据，包括 settings.json、extensions.json、Session 数据
+ipcMain.handle('restore-default-settings', async () => {
+  try {
+    // 1. 清除 Session 数据
+    await session.defaultSession.clearStorageData({
+      storages: [
+        'cookies', 'filesystem', 'indexdb', 'localstorage',
+        'websql', 'serviceworkers', 'cachestorage',
+      ],
+    })
+    await session.defaultSession.clearCache()
+    await session.defaultSession.clearCodeCaches()
+    // 清除已知的 webview 分区
+    for (const partitionName of ['persist:incognito']) {
+      try {
+        const partition = session.fromPartition(partitionName)
+        await partition.clearStorageData()
+        await partition.clearCache()
+      } catch (_) {}
+    }
+
+    // 2. 卸载所有扩展
+    for (const [extId] of installedExtensions) {
+      try {
+        await session.defaultSession.removeExtension(extId)
+      } catch (_) {}
+    }
+    installedExtensions.clear()
+
+    // 3. 删除持久化文件
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+    const extensionsPath = path.join(app.getPath('userData'), 'extensions.json')
+    try { if (fs.existsSync(settingsPath)) fs.unlinkSync(settingsPath) } catch (_) {}
+    try { if (fs.existsSync(extensionsPath)) fs.unlinkSync(extensionsPath) } catch (_) {}
+
+    // 4. 重置内存中的设置
+    protocolSettings = {
+      mode: 'blacklist',
+      whitelist: ['http:', 'https:', 'file:', 'blob:', 'data:'],
+      blacklist: [...DEFAULT_PROTOCOL_BLACKLIST],
+    }
+    permissionSettings = {
+      camera: 'ask', microphone: 'ask', geolocation: 'ask',
+      notifications: 'ask', midiSysex: 'block', pointerLock: 'ask',
+      fullscreen: 'ask', openExternal: 'ask', clipboardRead: 'ask',
+      clipboardSanitizedWrite: 'ask', idleDetection: 'block',
+      serial: 'block', sensors: 'block', displayCapture: 'ask',
+      hid: 'block', usb: 'block',
+    }
+  } catch (_) {
+    // 忽略清理错误
+  }
+  return true
+})
+
+// 扩展数据导出/导入
+ipcMain.handle('get-extensions-data', async () => {
+  try {
+    const extensionsPath = path.join(app.getPath('userData'), 'extensions.json')
+    if (fs.existsSync(extensionsPath)) {
+      return JSON.parse(fs.readFileSync(extensionsPath, 'utf-8'))
+    }
+    return []
+  } catch (_) {
+    return []
+  }
+})
+
+ipcMain.handle('set-extensions-data', async (_e, data) => {
+  try {
+    if (!Array.isArray(data)) return false
+    const extensionsPath = path.join(app.getPath('userData'), 'extensions.json')
+    fs.writeFileSync(extensionsPath, JSON.stringify(data, null, 2), 'utf-8')
+    return true
+  } catch (_) {
+    return false
+  }
 })
 
 ipcMain.handle('check-update', async () => {

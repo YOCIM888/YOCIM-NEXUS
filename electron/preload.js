@@ -81,6 +81,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getExternalSettings: () => ipcRenderer.invoke('get-external-settings'),
   setExternalSettings: (data) => ipcRenderer.invoke('set-external-settings', data),
 
+  // 扩展数据导出/导入
+  getExtensionsData: () => ipcRenderer.invoke('get-extensions-data'),
+  setExtensionsData: (data) => ipcRenderer.invoke('set-extensions-data', data),
+
+  // 复原默认设置（清除所有数据：settings.json + extensions.json + Session）
+  restoreDefaultSettings: () => ipcRenderer.invoke('restore-default-settings'),
+
   // 站点权限
   getSitePermissions: () => ipcRenderer.invoke('get-site-permissions'),
   updatePermission: (type, status) => ipcRenderer.invoke('update-permission', { type, status }),

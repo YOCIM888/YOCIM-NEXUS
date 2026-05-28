@@ -1,7 +1,9 @@
 import { ref, watch } from 'vue'
 import {
   getAiConfig, saveAiConfig, getActiveAiModel, generateId, AI_PROVIDERS,
-  getAiConversation, saveAiConversation, clearAiConversation,
+  getAllConversations, getActiveConversation, createConversation,
+  saveConversationMessages, deleteConversation, renameConversation,
+  setActiveConversation,
   getAiMemories, getActiveMemories, addAiMemory, updateAiMemory, deleteAiMemory,
   getMemoryRange, setMemoryRange, AI_DEFAULT_SYSTEM_PROMPT,
   getSettings, updateSettings,
@@ -91,44 +93,40 @@ export function useAi() {
   const memories = ref(getAiMemories())
   const memoryRange = ref(getMemoryRange())
   const pendingActions = ref(null)
+  const activeConversationId = ref('')
+  const conversationList = ref([])
 
-  // 加载当前活跃模型的对话
-  function loadConversation(modelId) {
-    if (modelId) {
-      messages.value = getAiConversation(modelId)
-    } else {
-      messages.value = []
+  function initConversations() {
+    const model = getActiveAiModel()
+    const data = getAllConversations()
+    let conv = getActiveConversation()
+
+    if (!conv && model) {
+      conv = createConversation('新对话', model.id)
     }
+
+    if (conv) {
+      activeConversationId.value = conv.id
+      messages.value = conv.messages || []
+    }
+    conversationList.value = data.conversations || []
     error.value = ''
     pendingActions.value = null
   }
 
-  // 保存当前对话
   function saveConversation() {
-    if (activeModel.value?.id) {
-      saveAiConversation(activeModel.value.id, messages.value)
+    if (activeConversationId.value) {
+      saveConversationMessages(activeConversationId.value, messages.value)
     }
   }
 
-  // 清空当前对话
-  function clearCurrentConversation() {
-    messages.value = []
-    error.value = ''
-    pendingActions.value = null
-    if (activeModel.value?.id) {
-      clearAiConversation(activeModel.value.id)
-    }
-  }
+  initConversations()
 
-  // 初始加载
-  loadConversation(activeModel.value?.id)
-
-  // 监听模型切换
   watch(activeModel, (newModel, oldModel) => {
     if (oldModel?.id) {
-      saveAiConversation(oldModel.id, messages.value)
+      saveConversation()
     }
-    loadConversation(newModel?.id)
+    initConversations()
   })
 
   function refreshConfig() {
@@ -139,6 +137,78 @@ export function useAi() {
   function refreshMemories() {
     memories.value = getAiMemories()
     memoryRange.value = getMemoryRange()
+  }
+
+  function refreshConversationList() {
+    const data = getAllConversations()
+    conversationList.value = data.conversations || []
+  }
+
+  function newConversation() {
+    saveConversation()
+    const model = getActiveAiModel()
+    const conv = createConversation('新对话', model?.id || '')
+    activeConversationId.value = conv.id
+    messages.value = []
+    error.value = ''
+    pendingActions.value = null
+    refreshConversationList()
+  }
+
+  function switchConversation(id) {
+    if (!id || id === activeConversationId.value) return
+    saveConversation()
+    setActiveConversation(id)
+    const conv = getActiveConversation()
+    if (conv) {
+      activeConversationId.value = conv.id
+      messages.value = conv.messages || []
+    }
+    error.value = ''
+    pendingActions.value = null
+  }
+
+  function clearCurrentConversation() {
+    if (!activeConversationId.value) return
+    deleteConversation(activeConversationId.value)
+    const data = getAllConversations()
+    conversationList.value = data.conversations || []
+    if (data.activeId) {
+      const conv = data.conversations.find(c => c.id === data.activeId)
+      activeConversationId.value = data.activeId
+      messages.value = conv?.messages || []
+    } else {
+      activeConversationId.value = ''
+      messages.value = []
+    }
+    error.value = ''
+    pendingActions.value = null
+  }
+
+  function deleteMessage(index) {
+    if (index < 0 || index >= messages.value.length) return
+    messages.value.splice(index, 1)
+    saveConversation()
+  }
+
+  async function reReply(index, onChunk, onDone, onError) {
+    // 找到被删除回复之前最后一条用户消息
+    let lastUserIdx = -1
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages.value[i].role === 'user') {
+        lastUserIdx = i
+        break
+      }
+    }
+    if (lastUserIdx === -1) return
+
+    const userMsg = messages.value[lastUserIdx].content
+    // 截断消息（从该 AI 回复开始删除）
+    messages.value.splice(index)
+    saveConversation()
+
+    // 重新发送
+    await sendMessage(userMsg, onChunk, onDone, onError)
   }
 
   function addModel(modelData) {
@@ -1112,6 +1182,8 @@ export function useAi() {
     memories,
     memoryRange,
     pendingActions,
+    activeConversationId,
+    conversationList,
     refreshConfig,
     refreshMemories,
     addModel,
@@ -1122,6 +1194,11 @@ export function useAi() {
     maskApiKey,
     clearMessages,
     clearCurrentConversation,
+    newConversation,
+    switchConversation,
+    deleteMessage,
+    reReply,
+    refreshConversationList,
     sendMessage,
     summarizeConversation,
     addMemoryItem,

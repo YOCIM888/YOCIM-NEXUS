@@ -25,7 +25,7 @@ export const AI_PROVIDERS = {
 
 const defaultNavSites = [
   { id: '1', name: 'YOCIM轻站', url: 'https://yocim.top', icon: 'https://yocim.top/public/images/xiyue.webp' },
-  { id: '2', name: 'YOCIM面板', url: 'https://workbench.yocim.top', icon: 'https://workbench.yocim.top/icon/YOCIM.png' },
+  { id: '2', name: 'YOCIM工具', url: 'https://workbench.yocim.top', icon: 'https://workbench.yocim.top/icon/YOCIM.png' },
   { id: '3', name: 'GitHub', url: 'https://github.com', icon: 'https://github.githubassets.com/favicons/favicon.svg' },
   { id: '4', name: 'Vercel', url: 'https://vercel.com', icon: 'https://image.uisdc.com/wp-content/uploads/2025/10/nav-logo-Vercel.webp' },
   { id: '5', name: 'GitLab', url: 'https://gitlab.com', icon: 'https://gitlab.com/favicon.png' },
@@ -562,8 +562,9 @@ export function getActiveAiModel() {
 }
 
 // ===== AI 对话持久化 =====
+// 新格式: { conversations: [{ id, title, modelId, messages, createdAt, updatedAt }], activeId }
 
-export function getAiConversations() {
+function getAiConversationsRaw() {
   try {
     const data = localStorage.getItem(KEYS.AI_CONVERSATIONS)
     return data ? JSON.parse(data) : {}
@@ -572,24 +573,149 @@ export function getAiConversations() {
   }
 }
 
+function saveAiConversationsRaw(data) {
+  localStorage.setItem(KEYS.AI_CONVERSATIONS, JSON.stringify(data))
+}
+
+// 迁移旧格式 -> 新格式
+function migrateAiConversations(raw) {
+  if (raw.conversations) return raw // 已迁移
+  const conversations = []
+  for (const [modelId, entry] of Object.entries(raw)) {
+    if (entry.messages && entry.messages.length > 0) {
+      conversations.push({
+        id: modelId,
+        title: entry.messages.find(m => m.role === 'user')?.content?.slice(0, 30) || '对话',
+        modelId: modelId,
+        messages: entry.messages || [],
+        createdAt: entry.updatedAt || Date.now(),
+        updatedAt: entry.updatedAt || Date.now(),
+      })
+    }
+  }
+  const result = {
+    conversations,
+    activeId: conversations.length > 0 ? conversations[0].id : '',
+  }
+  saveAiConversationsRaw(result)
+  return result
+}
+
+export function getAllConversations() {
+  const raw = getAiConversationsRaw()
+  return migrateAiConversations(raw)
+}
+
+export function getConversation(id) {
+  if (!id) return null
+  const data = getAllConversations()
+  return data.conversations.find(c => c.id === id) || null
+}
+
+export function getActiveConversation() {
+  const data = getAllConversations()
+  if (!data.activeId) return null
+  return data.conversations.find(c => c.id === data.activeId) || null
+}
+
+export function createConversation(title, modelId) {
+  const data = getAllConversations()
+  const conv = {
+    id: generateId(),
+    title: title || '新对话',
+    modelId: modelId || '',
+    messages: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+  data.conversations.push(conv)
+  data.activeId = conv.id
+  saveAiConversationsRaw(data)
+  return conv
+}
+
+export function saveConversationMessages(id, messages) {
+  if (!id) return
+  const data = getAllConversations()
+  const conv = data.conversations.find(c => c.id === id)
+  if (!conv) return
+  conv.messages = [...messages]
+  conv.updatedAt = Date.now()
+  // 自动更新标题（取第一条用户消息）
+  if (!conv.title || conv.title === '新对话') {
+    const firstUser = messages.find(m => m.role === 'user')
+    if (firstUser) {
+      conv.title = firstUser.content?.slice(0, 30) || '新对话'
+    }
+  }
+  saveAiConversationsRaw(data)
+}
+
+export function deleteConversation(id) {
+  if (!id) return
+  const data = getAllConversations()
+  data.conversations = data.conversations.filter(c => c.id !== id)
+  if (data.activeId === id) {
+    data.activeId = data.conversations.length > 0 ? data.conversations[data.conversations.length - 1].id : ''
+  }
+  saveAiConversationsRaw(data)
+}
+
+export function renameConversation(id, title) {
+  if (!id || !title) return
+  const data = getAllConversations()
+  const conv = data.conversations.find(c => c.id === id)
+  if (!conv) return
+  conv.title = title
+  conv.updatedAt = Date.now()
+  saveAiConversationsRaw(data)
+}
+
+export function setActiveConversation(id) {
+  const data = getAllConversations()
+  if (data.conversations.some(c => c.id === id)) {
+    data.activeId = id
+    saveAiConversationsRaw(data)
+  }
+}
+
+// 旧接口兼容
+export function getAiConversations() {
+  const data = getAllConversations()
+  const result = {}
+  for (const c of data.conversations) {
+    result[c.modelId || c.id] = { messages: c.messages, updatedAt: c.updatedAt }
+  }
+  return result
+}
+
 export function getAiConversation(modelId) {
   if (!modelId) return []
-  const all = getAiConversations()
-  return all[modelId]?.messages || []
+  const data = getAllConversations()
+  // 优先查找匹配 modelId 的对话
+  const conv = data.conversations.find(c => c.modelId === modelId && c.id === data.activeId)
+    || data.conversations.find(c => c.id === data.activeId)
+  return conv?.messages || []
 }
 
 export function saveAiConversation(modelId, messages) {
   if (!modelId) return
-  const all = getAiConversations()
-  all[modelId] = { messages: [...messages], updatedAt: Date.now() }
-  localStorage.setItem(KEYS.AI_CONVERSATIONS, JSON.stringify(all))
+  const data = getAllConversations()
+  const conv = data.conversations.find(c => c.id === data.activeId)
+  if (conv) {
+    conv.messages = [...messages]
+    conv.updatedAt = Date.now()
+    saveAiConversationsRaw(data)
+  }
 }
 
 export function clearAiConversation(modelId) {
   if (!modelId) return
-  const all = getAiConversations()
-  delete all[modelId]
-  localStorage.setItem(KEYS.AI_CONVERSATIONS, JSON.stringify(all))
+  const data = getAllConversations()
+  const conv = data.conversations.find(c => c.id === data.activeId)
+  if (conv) {
+    deleteConversation(conv.id)
+  }
 }
 
 // ===== AI 记忆 =====
