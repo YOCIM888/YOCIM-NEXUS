@@ -24,14 +24,7 @@ export const AI_PROVIDERS = {
 }
 
 const defaultNavSites = [
-  { id: '1', name: 'YOCIM工具', url: 'https://workbench.yocim.top', icon: 'https://workbench.yocim.top/icon/YOCIM.png' },
-  { id: '2', name: 'YOCIM轻站', url: 'https://yocim.top', icon: 'https://yocim.top/public/images/xiyue.webp' },
-  { id: '3', name: 'GitHub', url: 'https://github.com', icon: 'https://github.githubassets.com/favicons/favicon.svg' },
-  { id: '4', name: 'Vercel', url: 'https://vercel.com', icon: 'https://image.uisdc.com/wp-content/uploads/2025/10/nav-logo-Vercel.webp' },
-  { id: '5', name: 'GitLab', url: 'https://gitlab.com', icon: 'https://gitlab.com/favicon.png' },
-  { id: '6', name: 'Gitee', url: 'https://gitee.com', icon: 'https://gitee.com/favicon.ico' },
-  { id: '7', name: 'GitCode', url: 'https://gitcode.com', icon: 'https://gitcode.com/favicon.ico' },
-  { id: '8', name: 'Gitea', url: 'https://gitea.com', icon: 'https://www1.cstcloud.cn/app/site/resources/2023/08/00549/Gitea-Logo.wine.png' },
+  { id: '1', name: 'YOCIM NEXUS', url: 'https://yocim.top', icon: 'https://yocim.top/yocim.png' },
 ]
 
 const defaultBookmarks = {
